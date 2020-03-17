@@ -1,0 +1,25 @@
+{
+    "files.associations": {
+        "*.cjson": "jsonc",
+        "*.wxss": "css",
+        "*.wxs": "javascript",
+        ".gitmodules": "gitconfig",
+        "*.vue": "vue",
+        "secp256k1_helper.h": "c",
+        "blake2b.h": "c",
+        "common.h": "c",
+        "__locale": "cpp",
+        "__string": "cpp",
+        "string": "cpp",
+        "string_view": "cpp",
+        "cmath": "c",
+        "complex": "c",
+        "keccak256.h": "c",
+        "ckb_syscalls.h": "c",
+        "protocol.h": "c",
+        "string.h": "c",
+        "memory": "c",
+        "bech32.h": "c",
+        "molecule_reader.h": "c"
+    }
+}

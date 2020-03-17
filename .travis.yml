@@ -1,0 +1,36 @@
+language: rust
+rust: 1.34.2
+dist: xenial
+sudo: true
+cache:
+  directories:
+    - $HOME/.cargo
+  timeout: 1024
+
+git:
+  depth: 2
+
+env:
+  global:
+    - RUST_BACKTRACE=full
+
+matrix:
+  include:
+    - name: Test
+      script:
+        - make install-tools
+        - make generate-protocol
+        - make all-via-docker
+        - cargo test --tests
+
+    - name: Publish
+      if: 'tag IS present AND env(CRATES_IO_TOKEN) IS present'
+      script:
+        - make install-tools
+        - make generate-protocol
+        - make all-via-docker
+        - cargo login $CRATES_IO_TOKEN
+        - make publish
+
+before_cache:
+  - rm -rf ~/.cargo/registry
