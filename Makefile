@@ -2,7 +2,7 @@ TARGET := riscv64-unknown-elf
 CC := $(TARGET)-gcc
 LD := $(TARGET)-gcc
 OBJCOPY := $(TARGET)-objcopy
-CFLAGS := -O3 -Ideps/molecule -I deps/secp256k1/src -I deps/secp256k1 -I c -I build -Wall -Werror -Wno-nonnull-compare -Wno-unused-function -g
+CFLAGS := -O3 -Ideps/molecule -I deps/secp256k1/src -I deps/secp256k1 -I deps/ckb-c-std-lib -I c -I build -Wall -Werror -Wno-nonnull-compare -Wno-unused-function -g
 LDFLAGS := -Wl,-static -fdata-sections -ffunction-sections -Wl,--gc-sections
 SECP256K1_SRC := deps/secp256k1/src/ecmult_static_pre_context.h
 MOLC := moleculec
@@ -15,37 +15,22 @@ PROTOCOL_URL := https://raw.githubusercontent.com/nervosnetwork/ckb/${PROTOCOL_V
 # docker pull nervos/ckb-riscv-gnu-toolchain:bionic-20190702
 BUILDER_DOCKER := nervos/ckb-riscv-gnu-toolchain@sha256:7b168b4b109a0f741078a71b7c4dddaf1d283a5244608f7851f5714fbad273ba
 
-all: specs/cells/secp256k1_blake160_sighash_all specs/cells/dao specs/cells/secp256k1_blake160_multisig_all
+all: specs/cells/ckb_cell_upgrade specs/cells/secp256k1_keccak256_sighash_all  specs/cells/secp256k1_keccak256_sighash_all_acpl
 
 all-via-docker: ${PROTOCOL_HEADER}
 	docker run --rm -v `pwd`:/code ${BUILDER_DOCKER} bash -c "cd /code && make"
-
-specs/cells/secp256k1_blake160_sighash_all: c/secp256k1_blake160_sighash_all.c ${PROTOCOL_HEADER} c/common.h c/utils.h build/secp256k1_data_info.h $(SECP256K1_SRC)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $<
-	$(OBJCOPY) --only-keep-debug $@ $(subst specs/cells,build,$@.debug)
-	$(OBJCOPY) --strip-debug --strip-all $@
 
 specs/cells/secp256k1_keccak256_sighash_all: c/secp256k1_keccak256_sighash_all.c ${PROTOCOL_HEADER} c/keccak256.h c/common.h c/utils.h build/secp256k1_data_info.h $(SECP256K1_SRC)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $<
 	$(OBJCOPY) --only-keep-debug $@ $(subst specs/cells,build,$@.debug)
 	$(OBJCOPY) --strip-debug --strip-all $@
 
-specs/cells/secp256k1_blake160_multisig_all: c/secp256k1_blake160_multisig_all.c ${PROTOCOL_HEADER} c/common.h c/utils.h build/secp256k1_data_info.h $(SECP256K1_SRC)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $<
-	$(OBJCOPY) --only-keep-debug $@ $(subst specs/cells,build,$@.debug)
-	$(OBJCOPY) --strip-debug --strip-all $@
-
-specs/cells/dao: c/dao.c ${PROTOCOL_HEADER}
+specs/cells/secp256k1_keccak256_sighash_all_acpl: c/secp256k1_keccak256_sighash_all_acpl.c ${PROTOCOL_HEADER} c/keccak256.h c/common.h c/utils.h build/secp256k1_data_info.h $(SECP256K1_SRC)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $<
 	$(OBJCOPY) --only-keep-debug $@ $(subst specs/cells,build,$@.debug)
 	$(OBJCOPY) --strip-debug --strip-all $@
 
 specs/cells/ckb_cell_upgrade: c/ckb_cell_upgrade.c ${PROTOCOL_HEADER}
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $<
-	$(OBJCOPY) --only-keep-debug $@ $(subst specs/cells,build,$@.debug)
-	$(OBJCOPY) --strip-debug --strip-all $@
-
-specs/cells/key_bound_ownership_lock: c/key_bound_ownership_lock.c ${PROTOCOL_HEADER}
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $<
 	$(OBJCOPY) --only-keep-debug $@ $(subst specs/cells,build,$@.debug)
 	$(OBJCOPY) --strip-debug --strip-all $@
@@ -100,7 +85,7 @@ package-clean:
 
 clean:
 	rm -rf ${PROTOCOL_HEADER} ${PROTOCOL_SCHEMA}
-	rm -rf specs/cells/secp256k1_blake160_sighash_all specs/cells/dao specs/cells/secp256k1_blake160_multisig_all
+	rm -rf specs/cells/ckb_cell_upgrade  specs/cells/secp256k1_keccak256_sighash_all  specs/cells/secp256k1_keccak256_sighash_all_acpl
 	rm -rf build/secp256k1_data_info.h build/dump_secp256k1_data
 	rm -rf specs/cells/secp256k1_data
 	rm -rf build/*.debug

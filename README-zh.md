@@ -4,6 +4,16 @@ CKB官方的锁定脚本使用blake2b计算hash，使用secp256k1_ecdsa_recover�
 
 由于CKB脚本的灵活性，能支持各种自定义的脚本。 我们开发了一种能够验证ETH生态签名的锁定脚本，并将其命名为pw-lock。
 
+## 快速开始
+
+```
+git submodule init
+git submodule update
+make install-tools
+make all-via-docker
+cargo test --all
+```
+
 ## 原理
 
 ### 官方交易签名基本逻辑：
@@ -128,4 +138,8 @@ if( pubkey.slice(12,32) === lock.args){
 1. 根据typedData计算出typedHash，使用ECDSA_RECOVER算法从typedHash和签名计算出32位pubkey。
 2. 检测pubkey的后20位是否等于lock args（也就是ETH地址）。
 
+
+### 支持Anyone-can-pay 
+
+pw-lock 也集成了anyone-can-pay的特性，与官方发布的[anyone-can-pay](https://github.com/nervosnetwork/ckb-anyone-can-pay)一致
 

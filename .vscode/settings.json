@@ -20,6 +20,8 @@
         "string.h": "c",
         "memory": "c",
         "bech32.h": "c",
-        "molecule_reader.h": "c"
+        "molecule_reader.h": "c",
+        "defs.h": "c",
+        "ckb_consts.h": "c"
     }
 }

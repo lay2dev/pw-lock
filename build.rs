@@ -14,24 +14,16 @@ const CKB_HASH_PERSONALIZATION: &[u8] = b"ckb-default-hash";
 
 const BINARIES: &[(&str, &str)] = &[
     (
-        "secp256k1_blake160_sighash_all",
-        "709f3fda12f561cfacf92273c57a98fede188a3f1a59b1f888d113f9cce08649",
-    ),
-    (
         "secp256k1_data",
         "9799bee251b975b82c45a02154ce28cec89c5853ecc14d12b7b8cccfc19e0af4",
     ),
     (
-        "dao",
-        "32064a14ce10d95d4b7343054cc19d73b25b16ae61a6c681011ca781a60c7923",
-    ),
-    (
-        "secp256k1_blake160_multisig_all",
-        "43400de165f0821abf63dcac299bbdf7fd73898675ee4ddb099b0a0d8db63bfb",
-    ),
-    (
         "secp256k1_keccak256_sighash_all",
-        "564b80cee19a20d056a8f0b862631ea0b90f69934d4ab1f401d71eb6352c77ad",
+        "0985e7ea370ecbe66beadc6041cea1befa8a1b3e657e889da10ad9448edd20a5",
+    ),
+    (
+        "secp256k1_keccak256_sighash_all_acpl",
+        "3cf895e0e619700da364be1682286729ae970271e377e8a959f291aa65a3a4b0",
     ),
 ];
 
@@ -69,7 +61,7 @@ fn main() {
         let actual_hash = faster_hex::hex_string(&hash).unwrap();
         if expected_hash != &actual_hash {
             errors.push((name, expected_hash, actual_hash));
-            // continue;
+            continue;
         }
 
         write!(
@@ -81,12 +73,12 @@ fn main() {
         .expect("write to code_hashes.rs");
     }
 
-    // if !errors.is_empty() {
-    //     for (name, expected, actual) in errors.into_iter() {
-    //         eprintln!("{}: expect {}, actual {}", name, expected, actual);
-    //     }
-    //     panic!("not all hashes are right");
-    // }
+    if !errors.is_empty() {
+        for (name, expected, actual) in errors.into_iter() {
+            eprintln!("{}: expect {}, actual {}", name, expected, actual);
+        }
+        panic!("not all hashes are right");
+    }
 
     bundled.build("bundled.rs").expect("build resource bundle");
 }

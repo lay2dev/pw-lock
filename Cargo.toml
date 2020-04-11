@@ -1,12 +1,12 @@
 [package]
-name = "ckb-system-scripts"
+name = "pw-lock-scripts"
 version = "0.5.1"
-authors = ["Nervos Core Dev <dev@nervos.org>"]
+authors = ["Lay2 Dev <dev@lay2.dev>"]
 edition = "2018"
 build = "build.rs"
 license = "MIT"
-description = "CKB System Scripts"
-repository = "https://github.com/nervosnetwork/ckb-system-scripts"
+description = "PW Lock Scripts"
+repository = "https://github.com/lay2dev/pw-lock"
 include = ["src/**/*", "Cargo.toml", "build.rs", "specs/cells/*"]
 
 [dependencies]
