@@ -2,9 +2,10 @@ TARGET := riscv64-unknown-elf
 CC := $(TARGET)-gcc
 LD := $(TARGET)-gcc
 OBJCOPY := $(TARGET)-objcopy
-CFLAGS := -O3 -Ideps/molecule -I deps/secp256k1/src -I deps/secp256k1 -I deps/ckb-c-std-lib -I c -I build -Wall -Werror -Wno-nonnull-compare -Wno-unused-function -g
-LDFLAGS := -Wl,-static -fdata-sections -ffunction-sections -Wl,--gc-sections
+CFLAGS := -O3 -I deps/libecc/src -I deps/libecc/src/external_deps -I deps/ckb-c-std-lib/molecule -I deps/secp256k1/src -I deps/secp256k1 -I deps/ckb-c-std-lib -I c -I build -Wall -Werror -Wno-nonnull-compare -Wno-unused-function -g -DWORDSIZE=64  -DWITH_STDLIB -D__unix__
+LDFLAGS := -Wl,-static -fdata-sections -ffunction-sections -Wl,--gc-sections -DWITH_STDLIB -D__unix__ -DWORDSIZE=64
 SECP256K1_SRC := deps/secp256k1/src/ecmult_static_pre_context.h
+SECP256R1_DEP := deps/libecc/build/libsign.a
 MOLC := moleculec
 MOLC_VERSION := 0.4.1
 PROTOCOL_HEADER := c/protocol.h
@@ -15,7 +16,7 @@ PROTOCOL_URL := https://raw.githubusercontent.com/nervosnetwork/ckb/${PROTOCOL_V
 # docker pull nervos/ckb-riscv-gnu-toolchain:bionic-20190702
 BUILDER_DOCKER := nervos/ckb-riscv-gnu-toolchain@sha256:7b168b4b109a0f741078a71b7c4dddaf1d283a5244608f7851f5714fbad273ba
 
-all: specs/cells/ckb_cell_upgrade specs/cells/secp256k1_keccak256_sighash_all  specs/cells/secp256k1_keccak256_sighash_all_acpl
+all: specs/cells/ckb_cell_upgrade specs/cells/secp256k1_keccak256_sighash_all  specs/cells/secp256k1_keccak256_sighash_all_acpl specs/cells/secp256r1_sha256_sighash
 
 all-via-docker: ${PROTOCOL_HEADER}
 	docker run --rm -v `pwd`:/code ${BUILDER_DOCKER} bash -c "cd /code && make"
@@ -35,6 +36,11 @@ specs/cells/ckb_cell_upgrade: c/ckb_cell_upgrade.c ${PROTOCOL_HEADER}
 	$(OBJCOPY) --only-keep-debug $@ $(subst specs/cells,build,$@.debug)
 	$(OBJCOPY) --strip-debug --strip-all $@
 
+specs/cells/secp256r1_sha256_sighash: c/secp256r1_sha256_sighash.c $(SECP256R1_DEP)
+	$(CC) $(CFLAGS) $(LDFLAGS)  $< $(SECP256R1_DEP) deps/libecc/src/external_deps/rand.c  deps/libecc/src/external_deps/print.c -o $@
+	$(OBJCOPY) --only-keep-debug $@ $(subst specs/cells,build,$@.debug)
+	$(OBJCOPY) --strip-debug --strip-all $@
+
 build/secp256k1_data_info.h: build/dump_secp256k1_data
 	$<
 
@@ -47,6 +53,10 @@ $(SECP256K1_SRC):
 		./autogen.sh && \
 		CC=$(CC) LD=$(LD) ./configure --with-bignum=no --enable-ecmult-static-precomputation --enable-endomorphism --enable-module-recovery --host=$(TARGET) && \
 		make src/ecmult_static_pre_context.h src/ecmult_static_context.h
+
+$(SECP256R1_DEP):
+	cd deps/libecc && \
+	CC=$(CC) LD=$(LD) BLINDING=0 COMPLETE=0 make 64
 
 generate-protocol: check-moleculec-version ${PROTOCOL_HEADER}
 
@@ -85,11 +95,12 @@ package-clean:
 
 clean:
 	rm -rf ${PROTOCOL_HEADER} ${PROTOCOL_SCHEMA}
-	rm -rf specs/cells/ckb_cell_upgrade  specs/cells/secp256k1_keccak256_sighash_all  specs/cells/secp256k1_keccak256_sighash_all_acpl
+	rm -rf specs/cells/ckb_cell_upgrade  specs/cells/secp256k1_keccak256_sighash_all  specs/cells/secp256k1_keccak256_sighash_all_acpl specs/cells/secp256r1_sha256_sighash
 	rm -rf build/secp256k1_data_info.h build/dump_secp256k1_data
 	rm -rf specs/cells/secp256k1_data
 	rm -rf build/*.debug
 	cd deps/secp256k1 && [ -f "Makefile" ] && make clean
+	cd deps/libecc && make clean
 	cargo clean
 
 dist: clean all

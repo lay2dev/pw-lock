@@ -1,6 +1,7 @@
 mod anyone_can_pay;
 mod secp256k1_keccak256_sighash_all;
 mod secp256k1_keccak256_sighash_all_acpl_compatibility;
+mod secp256r1_sha256_sighash;
 
 use bech32::{self, ToBase32};
 use ckb_crypto::secp::{Privkey, Pubkey};
@@ -19,11 +20,25 @@ use secp256k1::key;
 
 use lazy_static::lazy_static;
 use std::collections::HashMap;
-
 use sha3::{Digest, Keccak256};
+
+use openssl::ec::{
+    EcKeyRef, 
+};
+use openssl::ecdsa::EcdsaSig;
+use openssl::ec::{
+  EcGroup, EcKey, PointConversionForm
+};
+use openssl::nid::Nid;
+use openssl::bn::BigNumContext;
+use openssl::pkey::Private;
+use sha2::{Sha256, Digest as SHA2Digest};
+use data_encoding::BASE64URL;
+use json::object;
 
 pub const MAX_CYCLES: u64 = std::u64::MAX;
 pub const SIGNATURE_SIZE: usize = 65;
+pub const R1_SIGNATURE_SIZE: usize = 300;
 
 lazy_static! {
     pub static ref SECP256K1_DATA_BIN: Bytes =
@@ -32,6 +47,8 @@ lazy_static! {
         Bytes::from(&include_bytes!("../../specs/cells/secp256k1_keccak256_sighash_all")[..]);
     pub static ref KECCAK256_ALL_ACPL_BIN: Bytes =
         Bytes::from(&include_bytes!("../../specs/cells/secp256k1_keccak256_sighash_all_acpl")[..]);
+    pub static ref SECP256R1_SHA256_SIGHASH_BIN: Bytes =
+        Bytes::from(&include_bytes!("../../specs/cells/secp256r1_sha256_sighash")[..]);
     pub static ref CKB_CELL_UPGRADE_BIN: Bytes =
         Bytes::from(&include_bytes!("../../specs/cells/ckb_cell_upgrade")[..]);
 }
@@ -331,4 +348,132 @@ pub fn hash_address(lock: Script) -> [u8; 32] {
     address_hasher.input(&ckb_address.as_bytes());
     message.copy_from_slice(&address_hasher.result()[0..32]);
     message
+}
+
+pub fn sign_tx_r1(
+    dummy: &mut DummyDataLoader,
+    tx: TransactionView,
+    key: &EcKeyRef<Private>,
+) -> TransactionView {
+    let witnesses_len = tx.witnesses().len();
+    sign_tx_by_input_group_r1(dummy, tx, key, 0, witnesses_len)
+}
+
+pub fn sign_tx_by_input_group_r1(
+    _dummy: &mut DummyDataLoader,
+    tx: TransactionView,
+    key: &EcKeyRef<Private>,
+    begin_index: usize,
+    len: usize,
+) -> TransactionView {
+    let tx_hash = tx.hash();
+    let mut signed_witnesses: Vec<packed::Bytes> = tx
+        .inputs()
+        .into_iter()
+        .enumerate()
+        .map(|(i, _)| {
+            if i == begin_index {
+                // let mut blake2b = ckb_hash::new_blake2b();
+                let mut hasher = Sha256::default();                
+                // let message = [0u8; 32];
+
+                // blake2b.update(&tx_hash.raw_data());
+                hasher.update(&tx_hash.raw_data());
+                // digest the first witness
+                let witness = WitnessArgs::new_unchecked(tx.witnesses().get(i).unwrap().unpack());
+                let zero_lock: Bytes = {
+                    let mut buf = Vec::new();
+                    buf.resize(R1_SIGNATURE_SIZE, 0);
+                    buf.into()
+                };
+                let witness_for_digest =
+                    witness.clone().as_builder().lock(zero_lock.pack()).build();
+                let witness_len = witness_for_digest.as_bytes().len() as u64;
+                // blake2b.update(&witness_len.to_le_bytes());
+                // blake2b.update(&witness_for_digest.as_bytes());
+                hasher.update(&witness_len.to_le_bytes());
+                hasher.update(&witness_for_digest.as_bytes());
+                ((i + 1)..(i + len)).for_each(|n| {
+                    let witness = tx.witnesses().get(n).unwrap();
+                    let witness_len = witness.raw_data().len() as u64;
+                    // blake2b.update(&witness_len.to_le_bytes());
+                    // blake2b.update(&witness.raw_data());
+                    hasher.update(&witness_len.to_le_bytes());
+                    hasher.update(&witness.raw_data());
+                });
+                // blake2b.finalize(&mut message);
+                let message = hasher.finalize();
+
+                let client_data = object! {
+                    t: "webauthn.get",
+                    challenge: BASE64URL.encode(&message),
+                    origin: "http://localhost:3000",
+                    crossOrigin: false,
+                };
+                let client_data_json = client_data.dump();
+                let client_data_json_bytes = client_data_json.as_bytes();
+
+                let authr_data:[u8; 37] = [
+    73, 150, 13, 229, 136, 14, 140, 104, 116, 52, 23, 15, 100, 118, 96, 91, 143, 228, 174, 185, 162, 134, 50, 199, 153, 92, 243, 186, 131, 29, 151, 99, 1, 0, 0, 0, 2,
+                ];
+
+                hasher = Sha256::default();
+                hasher.update(&client_data_json);
+                let message = hasher.finalize();
+
+                hasher = Sha256::default();
+                hasher.update(&authr_data.to_vec());
+                hasher.update(&message);
+                let message = hasher.finalize();
+
+                let sig = EcdsaSig::sign(&message, &key).unwrap();
+                let r = sig.r().to_owned().unwrap().to_vec();
+                let s = sig.s().to_owned().unwrap().to_vec();
+
+                let mut lock = [0u8; 300];
+                let data_length= 101 + client_data_json_bytes.len();
+                let r_length = r.len();
+                let s_length = s.len();
+                
+                lock[(32-r_length)..32].copy_from_slice(&r);
+                lock[(64-s_length)..64].copy_from_slice(&s);
+                lock[64..101].copy_from_slice(&authr_data);
+                lock[101..data_length].copy_from_slice(&client_data_json_bytes);
+
+                witness
+                    .as_builder()
+                    .lock(lock.to_vec().pack())
+                    .build()
+                    .as_bytes()
+                    .pack()
+            } else {
+                tx.witnesses().get(i).unwrap_or_default()
+            }
+        })
+        .collect();
+    for i in signed_witnesses.len()..tx.witnesses().len() {
+        signed_witnesses.push(tx.witnesses().get(i).unwrap());
+    }
+    // calculate message
+    tx.as_advanced_builder()
+        .set_witnesses(signed_witnesses)
+        .build()
+}
+
+pub fn random_r1_key() -> EcKey<Private> {
+   let group = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1).unwrap();
+   EcKey::generate(&group).unwrap()
+}
+
+pub fn r1_pub_key(key: &EcKeyRef<Private>) -> Bytes {
+    
+    let group = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1).unwrap();
+    let public_key = key.public_key();
+    let mut ctx = BigNumContext::new().unwrap();
+    let pubkey_bytes = public_key
+        .to_bytes(&group, PointConversionForm::UNCOMPRESSED, &mut ctx)
+        .unwrap();
+
+    Bytes::from(pubkey_bytes[1..].to_vec())
+
 }

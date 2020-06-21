@@ -25,6 +25,10 @@ const BINARIES: &[(&str, &str)] = &[
         "secp256k1_keccak256_sighash_all_acpl",
         "853d8a15a968193351040aa602a66403d6d47670f9dbfd830f8ec4ae9586046d",
     ),
+    (
+        "secp256r1_sha256_sighash",
+        "853d8a15a968193351040aa602a66403d6d47670f9dbfd830f8ec4ae9586046d",
+    ),
 ];
 
 fn main() {
@@ -72,6 +76,15 @@ fn main() {
         )
         .expect("write to code_hashes.rs");
     }
+
+    if let Ok(v) = env::var("DEP_OPENSSL_VERSION_NUMBER") {
+        let version = u64::from_str_radix(&v, 16).unwrap();
+
+        if version >= 0x1_01_01_00_0 {
+            println!("cargo:rustc-cfg=openssl111");
+        }
+    }
+    println!("hello world");
 
     // if !errors.is_empty() {
     //     for (name, expected, actual) in errors.into_iter() {
