@@ -133,4 +133,4 @@ if( pubkey.slice(12,32) === lock.args){
 
 ### Anyone-can-pay Support
 
-pw-lock also integrates the features of anyone-can-pay, which is consistent with the official [anyone-can-pay] (https://github.com/nervosnetwork/ckb-anyone-can-pay)
+pw-lock also integrates the features of anyone-can-pay, which is consistent with the official [anyone-can-pay](https://github.com/nervosnetwork/ckb-anyone-can-pay)

@@ -34,7 +34,7 @@
  * hash, the returned hash of ckb address
  * 
  */
-static int hash_address(mol_seg_t *script_seg, unsigned char * hash){
+int hash_address(mol_seg_t *script_seg, unsigned char * hash){
 
   mol_seg_t args_seg = MolReader_Script_get_args(script_seg);
   mol_seg_t args_bytes_seg = MolReader_Bytes_raw_bytes(&args_seg);
@@ -124,7 +124,7 @@ static int hash_address(mol_seg_t *script_seg, unsigned char * hash){
 * capacity, the capacity of the output cell
 * hash, the returned keccak256 hash of amount string
 */
-static int hash_amount(uint64_t capacity, unsigned char * hash){
+int hash_amount(uint64_t capacity, unsigned char * hash){
   unsigned char amount[100];
 
   /* format capacity */
@@ -156,11 +156,11 @@ static int hash_amount(uint64_t capacity, unsigned char * hash){
  *     'input-sum': '100.00000000CKB',
  *     to: [
  *       {
- *         address: 'ckb1qyqv4yga3pgw2h92hcnur7lepdfzmvg8wj7qwstnwm',
+ *         address: 'ckb1qyq...qwstnwm',
  *         amount: '100.00000000CKB',
  *       },
  *       {
- *         address: 'ckb1qftyhqxwuxdzp5zk4rctscnrr6stjrmfjdx54v05q8t3ad3493m6mhcekrn0vk575h44ql9ry53z3gzhtc2exudxcyg',
+ *         address: 'ckb1qft...xudxcyg',
  *         amount: '799.99800000CKB',
  *       },
  *     ],
@@ -191,7 +191,7 @@ static int hash_amount(uint64_t capacity, unsigned char * hash){
  * type_data_hash, the returned calculated typed data hash 
  * 
  */
-static int calculate_typed_data(unsigned char *tx_message, unsigned char * typed_data_hash){
+int calculate_typed_data(unsigned char *tx_message, unsigned char * typed_data_hash){
   int ret;
   uint64_t len = 0;
   size_t index = 0;
@@ -371,7 +371,7 @@ static int calculate_typed_data(unsigned char *tx_message, unsigned char * typed
  * 
  * 
  */
-static int verify_signature(unsigned char *message, unsigned char *lock_bytes, const void * lock_args){
+int verify_signature(unsigned char *message, unsigned char *lock_bytes, const void * lock_args){
 
   unsigned char temp[TEMP_SIZE];
 
