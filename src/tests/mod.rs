@@ -38,7 +38,9 @@ use json::object;
 
 pub const MAX_CYCLES: u64 = std::u64::MAX;
 pub const SIGNATURE_SIZE: usize = 65;
-pub const R1_SIGNATURE_SIZE: usize = 300;
+pub const R1_SIGNATURE_SIZE: usize = 500;
+pub const CKB_ADDRESS_PREFIX: &str = "ckb";
+pub const ENABLE_EIP712: bool = false;
 
 lazy_static! {
     pub static ref SECP256K1_DATA_BIN: Bytes =
@@ -175,9 +177,12 @@ pub fn sign_tx_by_input_group_keccak256(
                 hasher.input(&message);
                 message.copy_from_slice(&hasher.result()[0..32]);
 
-                // let message = H256::from(message);
-                let message = get_tx_typed_data_hash(dummy, message, tx.inputs(), tx.outputs());
-                let sig = key.sign_recoverable(&message).expect("sign");
+                let mut message1 = H256::from(message);
+                if ENABLE_EIP712 {
+                    message1 = get_tx_typed_data_hash(dummy, message, tx.inputs(), tx.outputs());
+                }
+
+               let sig = key.sign_recoverable(&message1).expect("sign");
                 witness
                     .as_builder()
                     .lock(sig.serialize().pack())
@@ -335,7 +340,7 @@ pub fn hash_address(lock: Script) -> [u8; 32] {
             prefix.extend(&code_hash.raw_data());
         }
         prefix.extend(&args.raw_data());
-        let address = bech32::encode("ckt", prefix.to_base32()).unwrap();
+        let address = bech32::encode(CKB_ADDRESS_PREFIX, prefix.to_base32()).unwrap();
 
         if address.len() <= 17 {
             ckb_address = address;
@@ -409,6 +414,7 @@ pub fn sign_tx_by_input_group_r1(
                     challenge: BASE64URL.encode(&message),
                     origin: "http://localhost:3000",
                     crossOrigin: false,
+                    extra_keys_may_be_added_here: "do not compare clientDataJSON against a template. See https://goo.gl/yabPex",
                 };
                 let client_data_json = client_data.dump();
                 let client_data_json_bytes = client_data_json.as_bytes();
@@ -430,7 +436,7 @@ pub fn sign_tx_by_input_group_r1(
                 let r = sig.r().to_owned().unwrap().to_vec();
                 let s = sig.s().to_owned().unwrap().to_vec();
 
-                let mut lock = [0u8; 300];
+                let mut lock = [0u8; R1_SIGNATURE_SIZE];
                 let data_length= 101 + client_data_json_bytes.len();
                 let r_length = r.len();
                 let s_length = s.len();

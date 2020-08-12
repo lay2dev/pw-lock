@@ -1,5 +1,5 @@
 use super::{
-    sign_tx_by_input_group_r1, sign_tx_r1, DummyDataLoader,
+    sign_tx_by_input_group_r1, sign_tx_r1, DummyDataLoader, R1_SIGNATURE_SIZE,
     MAX_CYCLES, SECP256R1_SHA256_SIGHASH_BIN, random_r1_key, r1_pub_key
 };
 use ckb_error::assert_error_eq;
@@ -164,6 +164,7 @@ fn sign_tx_hash(tx: TransactionView, key: &EcKeyRef<Private>, tx_hash: &[u8]) ->
         challenge: BASE64URL.encode(&message),
         origin: "http://localhost:3000",
         crossOrigin: false,
+        extra_keys_may_be_added_here: "do not compare clientDataJSON against a template. See https://goo.gl/yabPex"
     };
     let client_data_json = client_data.dump();
     let client_data_json_bytes = client_data_json.as_bytes();
@@ -185,7 +186,7 @@ fn sign_tx_hash(tx: TransactionView, key: &EcKeyRef<Private>, tx_hash: &[u8]) ->
     let r = sig.r().to_owned().unwrap().to_vec();
     let s = sig.s().to_owned().unwrap().to_vec();
 
-    let mut lock = [0u8; 300];
+    let mut lock = [0u8; R1_SIGNATURE_SIZE];
     let data_length= 101 + client_data_json_bytes.len();
     let r_length = r.len();
     let s_length = s.len();

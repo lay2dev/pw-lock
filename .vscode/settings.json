@@ -30,5 +30,6 @@
         "basic-config.h": "c",
         "main_impl.h": "c",
         "secp256k1_recovery.h": "c"
-    }
+    },
+    "C_Cpp.clang_format_fallbackStyle": "WebKit"
 }

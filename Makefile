@@ -101,7 +101,7 @@ clean:
 	rm -rf build/*.debug
 	cd deps/secp256k1 && [ -f "Makefile" ] && make clean
 	cd deps/libecc && make clean
-	cargo clean
+	#cargo clean
 
 dist: clean all
 

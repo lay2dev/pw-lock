@@ -15,7 +15,9 @@
 #define SCRIPT_SIZE 32768
 #define SIGNATURE_SIZE 65
 
-#define CKB_ADDRESS_PREFIX "ckt"
+#define CKB_ADDRESS_PREFIX "ckb"
+
+#define ENABLE_EIP712 false
 
 #define MAX_OUTPUT_LENGTH 64
 
@@ -534,12 +536,16 @@ int verify_secp256k1_keccak_sighash_all(unsigned char eth_address[BLAKE160_SIZE]
     return CKB_SUCCESS;
   }
 
-  /* Calculate Typed Data hash */
-  ret = calculate_typed_data(message, message);
-  if(ret != CKB_SUCCESS){
-    return ret;
+  if(ENABLE_EIP712){
+    /* Calculate Typed Data hash */
+    ret = calculate_typed_data(message, message);
+    if(ret != CKB_SUCCESS){
+      return ret;
+    }
+
+    /* verify signature with typed data hash */
+    ret = verify_signature(message, lock_bytes, eth_address);
   }
 
-  /* verify signature with typed data hash */
-  return verify_signature(message, lock_bytes, eth_address);
+  return ret;
 }
