@@ -15,7 +15,7 @@
 #include "ckb_syscalls.h"
 #include "protocol.h"
 #include "secp256k1_helper.h"
-#include "secp256k1_keccak256_lock.h"
+#include "secp256k1_keccak256_eth_lock.h"
 #include "defs.h"
 #include "quick_pow10.h"
 #include "anyone_can_pay_lock.h"
@@ -148,7 +148,7 @@ int main() {
   }
   if (has_sig) {
     /* unlock via signature */
-    return verify_secp256k1_keccak_sighash_all(pubkey_hash);
+    return verify_secp256k1_keccak_eth_sighash_all(pubkey_hash);
   } else {
     /* unlock via payment */
     return check_payment_unlock(min_ckb_amount, min_udt_amount);

@@ -2,7 +2,7 @@
 #include "ckb_syscalls.h"
 #include "protocol.h"
 #include "secp256k1_helper.h"
-#include "secp256k1_keccak256_eth_lock.h"
+#include "secp256k1_keccak256_helper.h"
 
 #define BLAKE2B_BLOCK_SIZE 32
 #define BLAKE160_SIZE 20
@@ -13,11 +13,6 @@
 #define MAX_WITNESS_SIZE 32768
 #define SCRIPT_SIZE 32768
 #define SIGNATURE_SIZE 65
-
-
-#define MAX_OUTPUT_LENGTH 64
-
-#define ERROR_TOO_MANY_OUTPUT_CELLS -18
 
 #if (MAX_WITNESS_SIZE > TEMP_SIZE) || (SCRIPT_SIZE > TEMP_SIZE)
 #error "Temp buffer is not big enough!"
@@ -61,6 +56,33 @@ int main() {
     return ERROR_ARGUMENTS_LEN;
   }
 
-  return verify_secp256k1_keccak_eth_sighash_all(args_bytes_seg.ptr);
+
+  unsigned char message[BLAKE2B_BLOCK_SIZE];
+  unsigned char lock_bytes[SIGNATURE_SIZE];
+
+  ret = get_signature_from_trancation(message, lock_bytes);
+  if(ret != CKB_SUCCESS){
+    return ret;
+  }
+
+  SHA3_CTX sha3_ctx;
+  keccak_init(&sha3_ctx);
+//   /* personal hash, ethereum prefix  \u0019Ethereum Signed Message:\n32  */
+//   unsigned char eth_prefix[28]= {
+// 0x19, 0x45, 0x74, 0x68, 0x65, 0x72, 0x65, 0x75, 0x6d, 0x20, 0x53, 0x69 ,0x67, 0x6e, 0x65, 0x64, 0x20, 0x4d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x3a, 0x0a, 0x33, 0x32
+//   };
+  /* personal hash, ethereum prefix  \x19TRON Signed Message:\n32  */
+  unsigned char tron_prefix[24]= {
+0x19, 
+// 0x45, 0x74, 0x68, 0x65, 0x72, 0x65, 0x75, 0x6d, 
+0x54, 0x52, 0x4f, 0x4e,
+0x20, 0x53, 0x69 ,0x67, 0x6e, 0x65, 0x64, 0x20, 0x4d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x3a, 0x0a, 0x33, 0x32
+  };
+  keccak_update(&sha3_ctx, tron_prefix, 24);
+  keccak_update(&sha3_ctx, message, 32);
+  keccak_final(&sha3_ctx, message);
+
+  /* verify signature with peronsal hash */
+  return verify_signature(message, lock_bytes, args_bytes_seg.ptr);
 
 }

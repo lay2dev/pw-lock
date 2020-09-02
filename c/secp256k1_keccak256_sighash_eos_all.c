@@ -2,8 +2,10 @@
 #include "ckb_syscalls.h"
 #include "protocol.h"
 #include "secp256k1_helper.h"
-#include "secp256k1_keccak256_eth_lock.h"
+#include "libsig.h"
+#include "secp256k1_keccak256_helper.h"
 
+#define SHA256_CTX sha256_context
 #define BLAKE2B_BLOCK_SIZE 32
 #define BLAKE160_SIZE 20
 #define PUBKEY_SIZE 65  // ETH address uncompress pub key 
@@ -23,6 +25,17 @@
 #error "Temp buffer is not big enough!"
 #endif
 
+ int split_hex_hash(unsigned char* source, unsigned char* dest) {
+     int i;
+     for (i = 0; i < BLAKE2B_BLOCK_SIZE; i++) {
+         if(i > 0 && i % 6 == 0){
+             *dest = ' ';
+             dest++;
+         }
+         dest += sprintf((char *)dest, "%02x", source[i]);
+     }
+     return 0;
+ }
 
 /*
  * Arguments:
@@ -61,6 +74,26 @@ int main() {
     return ERROR_ARGUMENTS_LEN;
   }
 
-  return verify_secp256k1_keccak_eth_sighash_all(args_bytes_seg.ptr);
+
+  unsigned char message[BLAKE2B_BLOCK_SIZE];
+  unsigned char lock_bytes[SIGNATURE_SIZE];
+
+  ret = get_signature_from_trancation(message, lock_bytes);
+  if(ret != CKB_SUCCESS){
+    return ret;
+  }
+
+  /* split message to words length <= 12 */
+
+  int split_message_len = BLAKE2B_BLOCK_SIZE * 2 + 5;
+  unsigned char splited_message[split_message_len];
+  split_hex_hash(message, splited_message);
+
+  SHA256_CTX sha256_ctx;
+  sha256_init(&sha256_ctx);
+  sha256_update(&sha256_ctx, splited_message, split_message_len);
+  sha256_final(&sha256_ctx, message);
+
+  return verify_signature(message, lock_bytes, args_bytes_seg.ptr);
 
 }
