@@ -2,7 +2,7 @@
 #include "ckb_syscalls.h"
 #include "protocol.h"
 #include "secp256k1_helper.h"
-#include "secp256k1_keccak256_eth_lock.h"
+#include "secp256k1_keccak256_lock.h"
 
 #define BLAKE2B_BLOCK_SIZE 32
 #define BLAKE160_SIZE 20
@@ -61,6 +61,6 @@ int main() {
     return ERROR_ARGUMENTS_LEN;
   }
 
-  return verify_secp256k1_keccak_eth_sighash_all(args_bytes_seg.ptr);
+  return verify_secp256k1_keccak_sighash_all(args_bytes_seg.ptr);
 
 }

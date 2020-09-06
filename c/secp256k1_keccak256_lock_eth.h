@@ -1,5 +1,4 @@
 #include "bech32.h"
-#include "secp256k1_keccak256_helper.h"
 
 #define BLAKE2B_BLOCK_SIZE 32
 #define BLAKE160_SIZE 20
@@ -372,15 +371,8 @@ int calculate_typed_data(unsigned char *tx_message, unsigned char * typed_data_h
  * Witness:
  * WitnessArgs with a signature in lock field used to present ownership.
  */
-int verify_secp256k1_keccak_eth_sighash_all(unsigned char eth_address[BLAKE160_SIZE]) {
+int verify_secp256k1_keccak_eth_sighash_all(unsigned char* message, unsigned char* eth_address, unsigned char* lock_bytes) {
   int ret;
-  unsigned char message[BLAKE2B_BLOCK_SIZE];
-  unsigned char lock_bytes[SIGNATURE_SIZE];
-
-  ret = get_signature_from_trancation(message, lock_bytes);
-  if(ret != CKB_SUCCESS){
-    return ret;
-  }
 
   SHA3_CTX sha3_ctx;
   keccak_init(&sha3_ctx);

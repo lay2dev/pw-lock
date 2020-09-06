@@ -1,6 +1,6 @@
 use super::{
-    sign_tx_by_input_group_r1, sign_tx_r1, DummyDataLoader, R1_SIGNATURE_SIZE,
-    MAX_CYCLES, SECP256R1_SHA256_SIGHASH_BIN, random_r1_key, r1_pub_key
+    r1_pub_key, random_r1_key, sign_tx_by_input_group_r1, sign_tx_r1, DummyDataLoader, MAX_CYCLES,
+    R1_SIGNATURE_SIZE, SECP256R1_SHA256_SIGHASH_BIN,
 };
 use ckb_error::assert_error_eq;
 use ckb_script::{ScriptError, TransactionScriptsVerifier};
@@ -15,15 +15,12 @@ use ckb_types::{
 };
 use rand::{thread_rng, Rng, SeedableRng};
 
-use openssl::pkey::Private;
-use openssl::ec::{
-    EcKeyRef, 
-};
-use openssl::ecdsa::EcdsaSig;
-use sha2::{Sha256, Digest as SHA2Digest};
 use data_encoding::BASE64URL;
 use json::object;
-
+use openssl::ec::EcKeyRef;
+use openssl::ecdsa::EcdsaSig;
+use openssl::pkey::Private;
+use sha2::{Digest as SHA2Digest, Sha256};
 
 const ERROR_ENCODING: i8 = -2;
 const ERROR_WITNESS_SIZE: i8 = -22;
@@ -169,8 +166,9 @@ fn sign_tx_hash(tx: TransactionView, key: &EcKeyRef<Private>, tx_hash: &[u8]) ->
     let client_data_json = client_data.dump();
     let client_data_json_bytes = client_data_json.as_bytes();
 
-    let authr_data:[u8; 37] = [
-73, 150, 13, 229, 136, 14, 140, 104, 116, 52, 23, 15, 100, 118, 96, 91, 143, 228, 174, 185, 162, 134, 50, 199, 153, 92, 243, 186, 131, 29, 151, 99, 1, 0, 0, 0, 2,
+    let authr_data: [u8; 37] = [
+        73, 150, 13, 229, 136, 14, 140, 104, 116, 52, 23, 15, 100, 118, 96, 91, 143, 228, 174, 185,
+        162, 134, 50, 199, 153, 92, 243, 186, 131, 29, 151, 99, 1, 0, 0, 0, 2,
     ];
 
     hasher = Sha256::default();
@@ -187,12 +185,12 @@ fn sign_tx_hash(tx: TransactionView, key: &EcKeyRef<Private>, tx_hash: &[u8]) ->
     let s = sig.s().to_owned().unwrap().to_vec();
 
     let mut lock = [0u8; R1_SIGNATURE_SIZE];
-    let data_length= 101 + client_data_json_bytes.len();
+    let data_length = 101 + client_data_json_bytes.len();
     let r_length = r.len();
     let s_length = s.len();
-    
-    lock[(32-r_length)..32].copy_from_slice(&r);
-    lock[(64-s_length)..64].copy_from_slice(&s);
+
+    lock[(32 - r_length)..32].copy_from_slice(&r);
+    lock[(64 - s_length)..64].copy_from_slice(&s);
     lock[64..101].copy_from_slice(&authr_data);
     lock[101..data_length].copy_from_slice(&client_data_json_bytes);
 
@@ -435,7 +433,7 @@ fn test_super_long_witness() {
 
     let sig = EcdsaSig::sign(&message, &privkey).unwrap();
     let r = sig.r().to_owned().unwrap();
-    // let s = sig.s().to_owned().unwrap();    
+    // let s = sig.s().to_owned().unwrap();
 
     let witness = WitnessArgs::new_builder()
         .lock(r.to_vec().pack())

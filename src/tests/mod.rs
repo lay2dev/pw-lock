@@ -17,30 +17,30 @@ use ckb_types::{
     H256,
 };
 use secp256k1::key;
+use std::env;
 
 use lazy_static::lazy_static;
-use std::collections::HashMap;
 use sha3::{Digest, Keccak256};
+use std::collections::HashMap;
 
-use openssl::ec::{
-    EcKeyRef, 
-};
-use openssl::ecdsa::EcdsaSig;
-use openssl::ec::{
-  EcGroup, EcKey, PointConversionForm
-};
-use openssl::nid::Nid;
-use openssl::bn::BigNumContext;
-use openssl::pkey::Private;
-use sha2::{Sha256, Digest as SHA2Digest};
 use data_encoding::BASE64URL;
 use json::object;
+use openssl::bn::BigNumContext;
+use openssl::ec::EcKeyRef;
+use openssl::ec::{EcGroup, EcKey, PointConversionForm};
+use openssl::ecdsa::EcdsaSig;
+use openssl::nid::Nid;
+use openssl::pkey::Private;
+use sha2::{Digest as SHA2Digest, Sha256};
 
 pub const MAX_CYCLES: u64 = std::u64::MAX;
 pub const SIGNATURE_SIZE: usize = 65;
 pub const R1_SIGNATURE_SIZE: usize = 500;
 pub const CKB_ADDRESS_PREFIX: &str = "ckb";
 pub const ENABLE_EIP712: bool = false;
+pub const CHAIN_ID_ETH: u8 = 1;
+pub const CHAIN_ID_EOS: u8 = 2;
+pub const CHAIN_ID_TRON: u8 = 3;
 
 lazy_static! {
     pub static ref SECP256K1_DATA_BIN: Bytes =
@@ -54,6 +54,17 @@ lazy_static! {
     pub static ref CKB_CELL_UPGRADE_BIN: Bytes =
         Bytes::from(&include_bytes!("../../specs/cells/ckb_cell_upgrade")[..]);
 }
+
+pub fn get_current_chain_id() -> u8 {
+    if let Ok(v) = env::var("CHAIN_ID") {
+       let chain_id= u8::from_str_radix(&v, 16).unwrap();
+    //    println!("current chain id {}", chain_id);
+       chain_id 
+    } else {
+        1
+    }
+}
+
 
 #[derive(Default)]
 pub struct DummyDataLoader {
@@ -146,12 +157,16 @@ pub fn sign_tx_by_input_group_keccak256(
                 let witness = WitnessArgs::new_unchecked(tx.witnesses().get(i).unwrap().unpack());
                 let zero_lock: Bytes = {
                     let mut buf = Vec::new();
-                    buf.resize(SIGNATURE_SIZE, 0);
+                    buf.resize(SIGNATURE_SIZE + 1, 0);
                     buf.into()
                 };
+                let mut lock = [0u8; SIGNATURE_SIZE + 1];
+                lock[0] = get_current_chain_id();
+
                 let witness_for_digest =
                     witness.clone().as_builder().lock(zero_lock.pack()).build();
                 let witness_len = witness_for_digest.as_bytes().len() as u64;
+                println!("witness_len = {}", witness_len);
                 // blake2b.update(&witness_len.to_le_bytes());
                 // blake2b.update(&witness_for_digest.as_bytes());
                 hasher.input(&witness_len.to_le_bytes());
@@ -167,25 +182,63 @@ pub fn sign_tx_by_input_group_keccak256(
                 // blake2b.finalize(&mut message);
                 message.copy_from_slice(&hasher.result()[0..32]);
 
-                let prefix: [u8; 28] = [
-                    0x19, 0x45, 0x74, 0x68, 0x65, 0x72, 0x65, 0x75, 0x6d, 0x20, 0x53, 0x69, 0x67,
-                    0x6e, 0x65, 0x64, 0x20, 0x4d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x3a, 0x0a,
-                    0x33, 0x32,
-                ];
-                hasher = Keccak256::default();
-                hasher.input(&prefix);
-                hasher.input(&message);
-                message.copy_from_slice(&hasher.result()[0..32]);
+                if get_current_chain_id() == CHAIN_ID_ETH {
+                    let prefix: [u8; 28] = [
+                        0x19, 0x45, 0x74, 0x68, 0x65, 0x72, 0x65, 0x75, 0x6d, 0x20, 0x53, 0x69,
+                        0x67, 0x6e, 0x65, 0x64, 0x20, 0x4d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65,
+                        0x3a, 0x0a, 0x33, 0x32,
+                    ];
+                    hasher = Keccak256::default();
+                    hasher.input(&prefix);
+                    hasher.input(&message);
+                    message.copy_from_slice(&hasher.result()[0..32]);
 
-                let mut message1 = H256::from(message);
-                if ENABLE_EIP712 {
-                    message1 = get_tx_typed_data_hash(dummy, message, tx.inputs(), tx.outputs());
+                    let mut message1 = H256::from(message);
+                    if ENABLE_EIP712 {
+                        message1 =
+                            get_tx_typed_data_hash(dummy, message, tx.inputs(), tx.outputs());
+                    }
+
+                    let sig = key.sign_recoverable(&message1).expect("sign");
+                    lock[1..].copy_from_slice(&sig.serialize().to_vec());
+                } else if get_current_chain_id() == CHAIN_ID_TRON {
+                    let prefix: [u8; 24] = [
+                        0x19, 0x54, 0x52, 0x4f, 0x4e, 0x20, 0x53, 0x69, 0x67, 0x6e, 0x65, 0x64,
+                        0x20, 0x4d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x3a, 0x0a, 0x33, 0x32,
+                    ];
+                    hasher = Keccak256::default();
+                    hasher.input(&prefix);
+                    hasher.input(&message);
+                    message.copy_from_slice(&hasher.result()[0..32]);
+
+                    let message1 = H256::from(message);
+
+                    let sig = key.sign_recoverable(&message1).expect("sign");
+                    lock[1..].copy_from_slice(&sig.serialize().to_vec());
+                } else if get_current_chain_id() == CHAIN_ID_EOS {
+                    let mut message_hex = faster_hex::hex_string(&message).unwrap();
+                    println!("message_hex {}", message_hex);
+                    message_hex.insert_str(12, " ");
+                    message_hex.insert_str(25, " ");
+                    message_hex.insert_str(38, " ");
+                    message_hex.insert_str(51, " ");
+                    message_hex.insert_str(64, " ");
+                    println!("message_hex {}", message_hex);
+
+                    let mut sha256hasher = Sha256::default();
+                    sha256hasher.update(&message_hex.as_bytes());
+
+                    message.copy_from_slice(&sha256hasher.finalize().to_vec());
+                    let message1 = H256::from(message);
+                    let sig = key.sign_recoverable(&message1).expect("sign");
+                    lock[1..].copy_from_slice(&sig.serialize().to_vec());
                 }
 
-               let sig = key.sign_recoverable(&message1).expect("sign");
+                println!("lock is {}", faster_hex::hex_string(&lock).unwrap());
+
                 witness
                     .as_builder()
-                    .lock(sig.serialize().pack())
+                    .lock(lock.to_vec().pack())
                     .build()
                     .as_bytes()
                     .pack()
@@ -326,9 +379,16 @@ pub fn hash_address(lock: Script) -> [u8; 32] {
         ];
 
         let mut prefix;
-        if code_hash.raw_data().to_vec().eq(&secp256k1_blake160_sighash_all_type_hash) {
+        if code_hash
+            .raw_data()
+            .to_vec()
+            .eq(&secp256k1_blake160_sighash_all_type_hash)
+        {
             prefix = vec![0x01, 0x00];
-        } else if code_hash.raw_data().to_vec().eq(&secp256k1_blake160_multisig_all_type_hash)
+        } else if code_hash
+            .raw_data()
+            .to_vec()
+            .eq(&secp256k1_blake160_multisig_all_type_hash)
         {
             prefix = vec![0x01, 0x01];
         } else {
@@ -379,7 +439,7 @@ pub fn sign_tx_by_input_group_r1(
         .map(|(i, _)| {
             if i == begin_index {
                 // let mut blake2b = ckb_hash::new_blake2b();
-                let mut hasher = Sha256::default();                
+                let mut hasher = Sha256::default();
                 // let message = [0u8; 32];
 
                 // blake2b.update(&tx_hash.raw_data());
@@ -440,7 +500,6 @@ pub fn sign_tx_by_input_group_r1(
                 let data_length= 101 + client_data_json_bytes.len();
                 let r_length = r.len();
                 let s_length = s.len();
-                
                 lock[(32-r_length)..32].copy_from_slice(&r);
                 lock[(64-s_length)..64].copy_from_slice(&s);
                 lock[64..101].copy_from_slice(&authr_data);
@@ -467,12 +526,11 @@ pub fn sign_tx_by_input_group_r1(
 }
 
 pub fn random_r1_key() -> EcKey<Private> {
-   let group = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1).unwrap();
-   EcKey::generate(&group).unwrap()
+    let group = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1).unwrap();
+    EcKey::generate(&group).unwrap()
 }
 
 pub fn r1_pub_key(key: &EcKeyRef<Private>) -> Bytes {
-    
     let group = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1).unwrap();
     let public_key = key.public_key();
     let mut ctx = BigNumContext::new().unwrap();
@@ -481,5 +539,4 @@ pub fn r1_pub_key(key: &EcKeyRef<Private>) -> Bytes {
         .unwrap();
 
     Bytes::from(pubkey_bytes[1..].to_vec())
-
 }

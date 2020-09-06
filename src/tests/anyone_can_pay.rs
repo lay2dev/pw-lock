@@ -14,7 +14,7 @@ use ckb_types::{
 use rand::{thread_rng, Rng};
 
 pub const ERROR_ENCODING: i8 = -2;
-pub const ERROR_OVERFLOW: i8 = -41;
+// pub const ERROR_OVERFLOW: i8 = -41;
 pub const ERROR_OUTPUT_AMOUNT_NOT_ENOUGH: i8 = -42;
 pub const ERROR_NO_PAIR: i8 = -44;
 pub const ERROR_DUPLICATED_INPUTS: i8 = -45;
@@ -468,6 +468,6 @@ fn test_overflow() {
 
     assert_error_eq!(
         verify_result.unwrap_err(),
-        ScriptError::ValidationFailure(ERROR_OVERFLOW),
+        ScriptError::ValidationFailure(ERROR_OUTPUT_AMOUNT_NOT_ENOUGH),
     );
 }

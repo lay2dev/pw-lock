@@ -11,7 +11,8 @@ git submodule init
 git submodule update
 make install-tools
 make all-via-docker
-cargo test --all
+# chain_id specified the chain number. for eth 1, eos 2, tron 3.
+CHAIN_ID=1 cargo test --all
 ```
 
 ## Script Implementation
