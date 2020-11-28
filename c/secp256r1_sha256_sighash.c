@@ -7,14 +7,14 @@
 
 #define SHA256_CTX sha256_context
 #define HASH_SIZE 32
-#define BLAKE160_SIZE 20
-#define PUBKEY_SIZE 64
+#define LOCK_ARGS_SIZE 20
+#define R1_PUBKEY_SIZE 64
 #define TEMP_SIZE 32768
 #define RECID_INDEX 64
 /* 32 KB */
 #define MAX_WITNESS_SIZE 32768
 #define SCRIPT_SIZE 32768
-#define LOCK_SIZE 500
+#define WITNESS_LOCK_SIZE 564
 #define SIGNATURE_SIZE 64
 #define AUTHR_DATA_SIZE 37
 
@@ -60,6 +60,7 @@ int verify_challenge_in_client_data(const u8* challenge, const u8* client_data,
   u8 challenge_decode[33];
   size_t challenge_decode_len = 33;
 
+  /*  ASCII code for string \"challenge\":\"  */
   u8 prefix[] = {34, 99, 104, 97, 108, 108, 101, 110, 103, 101, 34, 58, 34};
   int prefix_len = 13;
   u8 suffix[] = {34};
@@ -113,7 +114,7 @@ int verify_challenge_in_client_data(const u8* challenge, const u8* client_data,
 int verify_secp256r1_signature(const u8* pub_key_buffer, const u8* data,
                                const u8* sig) {
   int ret;
-  u8 pub_key_buffer_len = PUBKEY_SIZE;
+  u8 pub_key_buffer_len = R1_PUBKEY_SIZE;
   u8 data_len = AUTHR_DATA_SIZE + HASH_SIZE;
 
   u8 siglen = SIGNATURE_SIZE;
@@ -156,7 +157,8 @@ int main() {
   int ret;
   uint64_t len = 0;
   unsigned char temp[TEMP_SIZE];
-  unsigned char lock_bytes[LOCK_SIZE];
+  unsigned char lock_bytes[WITNESS_LOCK_SIZE];
+  unsigned char pub_key[R1_PUBKEY_SIZE];
 
   /* Load args */
   unsigned char script[SCRIPT_SIZE];
@@ -178,7 +180,7 @@ int main() {
 
   mol_seg_t args_seg = MolReader_Script_get_args(&script_seg);
   mol_seg_t args_bytes_seg = MolReader_Bytes_raw_bytes(&args_seg);
-  if (args_bytes_seg.size != PUBKEY_SIZE) {
+  if (args_bytes_seg.size != LOCK_ARGS_SIZE) {
     return ERROR_ARGUMENTS_LEN;
   }
 
@@ -200,10 +202,19 @@ int main() {
     return ERROR_ENCODING;
   }
 
-  if (lock_bytes_seg.size != LOCK_SIZE) {
+  if (lock_bytes_seg.size != WITNESS_LOCK_SIZE) {
     return ERROR_ARGUMENTS_LEN;
   }
   memcpy(lock_bytes, lock_bytes_seg.ptr, lock_bytes_seg.size);
+
+  /* check pubkey's hash equal to lock script args */
+  unsigned char pub_key_hash[HASH_SIZE];
+  for (int j = 0; j < HASH_SIZE; j++) pub_key_hash[j] = 0;
+  memcpy(pub_key, lock_bytes_seg.ptr, R1_PUBKEY_SIZE);
+  sha256(pub_key, R1_PUBKEY_SIZE, pub_key_hash);
+  if (memcmp(args_bytes_seg.ptr, pub_key_hash, LOCK_ARGS_SIZE) != 0) {
+    return ERROR_WRONG_SIGNATURE;
+  }
 
   /* Load tx hash */
   unsigned char tx_hash[HASH_SIZE];
@@ -227,7 +238,7 @@ int main() {
   sha256_update(&sha256_ctx, (unsigned char*)&witness_len, sizeof(uint64_t));
   sha256_update(&sha256_ctx, temp, witness_len);
 
-  // /* Digest same group witnesses */
+  /* Digest same group witnesses */
   size_t i = 1;
   while (1) {
     len = MAX_WITNESS_SIZE;
@@ -266,16 +277,18 @@ int main() {
   }
   sha256_final(&sha256_ctx, message);
 
-  for (i = LOCK_SIZE - 1; i >= 0; i--) {
+  for (i = WITNESS_LOCK_SIZE - 1; i >= 0; i--) {
     if (lock_bytes[i] != 0) {
       break;
     }
   }
-  int client_data_size = i - SIGNATURE_SIZE - AUTHR_DATA_SIZE + 1;
+  int client_data_size =
+      i - R1_PUBKEY_SIZE - SIGNATURE_SIZE - AUTHR_DATA_SIZE + 1;
 
   /* verify challenge in client_data */
   ret = verify_challenge_in_client_data(
-      message, lock_bytes + SIGNATURE_SIZE + AUTHR_DATA_SIZE, client_data_size);
+      message, lock_bytes + R1_PUBKEY_SIZE + SIGNATURE_SIZE + AUTHR_DATA_SIZE,
+      client_data_size);
   if (ret != CKB_SUCCESS) {
     return ret;
   }
@@ -283,12 +296,13 @@ int main() {
   /* build message_to_sign */
   u8 client_data_hash[HASH_SIZE];
   u8 message_to_sign[AUTHR_DATA_SIZE + HASH_SIZE];
-  sha256(lock_bytes + SIGNATURE_SIZE + AUTHR_DATA_SIZE, client_data_size,
-         client_data_hash);
+  sha256(lock_bytes + R1_PUBKEY_SIZE + SIGNATURE_SIZE + AUTHR_DATA_SIZE,
+         client_data_size, client_data_hash);
 
-  memcpy(message_to_sign, lock_bytes + SIGNATURE_SIZE, AUTHR_DATA_SIZE);
+  memcpy(message_to_sign, lock_bytes + R1_PUBKEY_SIZE + SIGNATURE_SIZE,
+         AUTHR_DATA_SIZE);
   memcpy(message_to_sign + AUTHR_DATA_SIZE, client_data_hash, HASH_SIZE);
 
-  return verify_secp256r1_signature(args_bytes_seg.ptr,
-                                    (const u8*)message_to_sign, lock_bytes);
+  return verify_secp256r1_signature(pub_key, (const u8*)message_to_sign,
+                                    lock_bytes + R1_PUBKEY_SIZE);
 }

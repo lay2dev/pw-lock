@@ -38,7 +38,7 @@ use json::object;
 
 pub const MAX_CYCLES: u64 = std::u64::MAX;
 pub const SIGNATURE_SIZE: usize = 65;
-pub const R1_SIGNATURE_SIZE: usize = 500;
+pub const R1_SIGNATURE_SIZE: usize = 564;
 pub const CKB_ADDRESS_PREFIX: &str = "ckb";
 pub const ENABLE_EIP712: bool = false;
 
@@ -364,6 +364,14 @@ pub fn sign_tx_r1(
     sign_tx_by_input_group_r1(dummy, tx, key, 0, witnesses_len)
 }
 
+/// 
+///  witness.lock structure
+///  |---------------|----------------|-------------|--------------|---------------|--------------------------|
+///  |---------------|----------------|-------------|--------------|---------------|--------------------------|
+///  | 0-31 pubkey.x | 32-63 pubkey.y | 64-95 sig.r | 96-127 sig.s | 128-164 authr | 165-565 client_data_json |
+///  |---------------|----------------|-------------|--------------|---------------|--------------------------|
+///  |---------------|----------------|-------------|--------------|---------------|--------------------------|
+/// 
 pub fn sign_tx_by_input_group_r1(
     _dummy: &mut DummyDataLoader,
     tx: TransactionView,
@@ -378,11 +386,8 @@ pub fn sign_tx_by_input_group_r1(
         .enumerate()
         .map(|(i, _)| {
             if i == begin_index {
-                // let mut blake2b = ckb_hash::new_blake2b();
                 let mut hasher = Sha256::default();                
-                // let message = [0u8; 32];
 
-                // blake2b.update(&tx_hash.raw_data());
                 hasher.update(&tx_hash.raw_data());
                 // digest the first witness
                 let witness = WitnessArgs::new_unchecked(tx.witnesses().get(i).unwrap().unpack());
@@ -394,19 +399,14 @@ pub fn sign_tx_by_input_group_r1(
                 let witness_for_digest =
                     witness.clone().as_builder().lock(zero_lock.pack()).build();
                 let witness_len = witness_for_digest.as_bytes().len() as u64;
-                // blake2b.update(&witness_len.to_le_bytes());
-                // blake2b.update(&witness_for_digest.as_bytes());
                 hasher.update(&witness_len.to_le_bytes());
                 hasher.update(&witness_for_digest.as_bytes());
                 ((i + 1)..(i + len)).for_each(|n| {
                     let witness = tx.witnesses().get(n).unwrap();
                     let witness_len = witness.raw_data().len() as u64;
-                    // blake2b.update(&witness_len.to_le_bytes());
-                    // blake2b.update(&witness.raw_data());
                     hasher.update(&witness_len.to_le_bytes());
                     hasher.update(&witness.raw_data());
                 });
-                // blake2b.finalize(&mut message);
                 let message = hasher.finalize();
 
                 let client_data = object! {
@@ -436,15 +436,19 @@ pub fn sign_tx_by_input_group_r1(
                 let r = sig.r().to_owned().unwrap().to_vec();
                 let s = sig.s().to_owned().unwrap().to_vec();
 
+
                 let mut lock = [0u8; R1_SIGNATURE_SIZE];
-                let data_length= 101 + client_data_json_bytes.len();
+                let data_length= client_data_json_bytes.len();
                 let r_length = r.len();
                 let s_length = s.len();
+                let pub_key = r1_pub_key(&key);
                 
-                lock[(32-r_length)..32].copy_from_slice(&r);
-                lock[(64-s_length)..64].copy_from_slice(&s);
-                lock[64..101].copy_from_slice(&authr_data);
-                lock[101..data_length].copy_from_slice(&client_data_json_bytes);
+                lock[0..64].copy_from_slice(&pub_key.to_vec());
+                lock[(96-r_length)..96].copy_from_slice(&r);
+                lock[(128-s_length)..128].copy_from_slice(&s);
+                lock[128..165].copy_from_slice(&authr_data);
+                lock[165..(165 + data_length)].copy_from_slice(&client_data_json_bytes);
+
 
                 witness
                     .as_builder()
