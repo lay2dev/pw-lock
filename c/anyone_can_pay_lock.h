@@ -196,7 +196,6 @@ int check_payment_unlock(uint64_t min_ckb_amount, uint128_t min_udt_amount) {
       /* output coins must meet condition, or remain the old amount */
       if ((!meet_ckb_cond && ckb_amount != input_wallets[j].ckb_amount) ||
           (!meet_udt_cond && udt_amount != input_wallets[j].udt_amount)) {
-
         return ERROR_OUTPUT_AMOUNT_NOT_ENOUGH;
       }
 
@@ -232,4 +231,3 @@ int check_payment_unlock(uint64_t min_ckb_amount, uint128_t min_udt_amount) {
 
   return CKB_SUCCESS;
 }
-

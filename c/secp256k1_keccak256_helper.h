@@ -1,11 +1,11 @@
 #include "ckb_syscalls.h"
+#include "keccak256.h"
 #include "protocol.h"
 #include "secp256k1_helper.h"
-#include "keccak256.h"
 
 #define BLAKE2B_BLOCK_SIZE 32
 #define BLAKE160_SIZE 20
-#define PUBKEY_SIZE 65  // ETH address uncompress pub key 
+#define PUBKEY_SIZE 65  // ETH address uncompress pub key
 #define TEMP_SIZE 32768
 #define RECID_INDEX 64
 /* 32 KB */
@@ -17,20 +17,19 @@
 #error "Temp buffer is not big enough!"
 #endif
 
-
 /*
- * Verify secp256k1 signature, check the kecack256 hash of pubkey recovered from signature 
- * is equal with the lock script arg.
- * 
+ * Verify secp256k1 signature, check the kecack256 hash of pubkey recovered from
+ * signature is equal with the lock script arg.
+ *
  * Arguments:
  * message,  the calculated hash of ckb transaciton.
  * lock_bytes, the signature from transcation witness.
  * lock_args, the args of lock script.
- * 
- * 
+ *
+ *
  */
-int verify_signature(unsigned char *message, unsigned char *lock_bytes, const void * lock_args){
-
+int verify_signature(unsigned char *message, unsigned char *lock_bytes,
+                     const void *lock_args) {
   unsigned char temp[TEMP_SIZE];
 
   /* Load signature */
@@ -72,9 +71,9 @@ int verify_signature(unsigned char *message, unsigned char *lock_bytes, const vo
   return CKB_SUCCESS;
 }
 
-
-int get_signature_from_trancation(uint64_t* chain_id, unsigned char *message, unsigned char *lock_bytes){
- int ret;
+int get_signature_from_trancation(uint64_t *chain_id, unsigned char *message,
+                                  unsigned char *lock_bytes) {
+  int ret;
   uint64_t len = 0;
   unsigned char temp[TEMP_SIZE];
 
@@ -96,14 +95,15 @@ int get_signature_from_trancation(uint64_t* chain_id, unsigned char *message, un
     return ERROR_ENCODING;
   }
 
-  if (lock_bytes_seg.size < SIGNATURE_SIZE || lock_bytes_seg.size > SIGNATURE_SIZE + 1) {
+  if (lock_bytes_seg.size < SIGNATURE_SIZE ||
+      lock_bytes_seg.size > SIGNATURE_SIZE + 1) {
     return ERROR_ARGUMENTS_LEN;
   }
 
-  if(lock_bytes_seg.size == SIGNATURE_SIZE){
+  if (lock_bytes_seg.size == SIGNATURE_SIZE) {
     *chain_id = 1;
     memcpy(lock_bytes, lock_bytes_seg.ptr, SIGNATURE_SIZE);
-  }else{
+  } else {
     memcpy(chain_id, lock_bytes_seg.ptr, 1);
     memcpy(lock_bytes, (lock_bytes_seg.ptr + 1), SIGNATURE_SIZE);
     // return *chain_id;
@@ -124,7 +124,6 @@ int get_signature_from_trancation(uint64_t* chain_id, unsigned char *message, un
   SHA3_CTX sha3_ctx;
   keccak_init(&sha3_ctx);
   keccak_update(&sha3_ctx, tx_hash, BLAKE2B_BLOCK_SIZE);
-
 
   /* Clear lock field to zero, then digest the first witness */
   memset((void *)lock_bytes_seg.ptr, 0, lock_bytes_seg.size);

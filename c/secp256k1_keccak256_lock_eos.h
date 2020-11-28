@@ -1,16 +1,15 @@
- /* The script perform secp256k1_keccak256_sighash_all verification. */
+/* The script perform secp256k1_keccak256_sighash_all verification. */
 
 #define SHA256_CTX sha256_context
 #define BLAKE2B_BLOCK_SIZE 32
 #define BLAKE160_SIZE 20
-#define PUBKEY_SIZE 65  // ETH address uncompress pub key 
+#define PUBKEY_SIZE 65  // ETH address uncompress pub key
 #define TEMP_SIZE 32768
 #define RECID_INDEX 64
 /* 32 KB */
 #define MAX_WITNESS_SIZE 32768
 #define SCRIPT_SIZE 32768
 #define SIGNATURE_SIZE 65
-
 
 #define MAX_OUTPUT_LENGTH 64
 
@@ -20,17 +19,17 @@
 #error "Temp buffer is not big enough!"
 #endif
 
- int split_hex_hash(unsigned char* source, unsigned char* dest) {
-     int i;
-     for (i = 0; i < BLAKE2B_BLOCK_SIZE; i++) {
-         if(i > 0 && i % 6 == 0){
-             *dest = ' ';
-             dest++;
-         }
-         dest += sprintf((char *)dest, "%02x", source[i]);
-     }
-     return 0;
- }
+int split_hex_hash(unsigned char* source, unsigned char* dest) {
+  int i;
+  for (i = 0; i < BLAKE2B_BLOCK_SIZE; i++) {
+    if (i > 0 && i % 6 == 0) {
+      *dest = ' ';
+      dest++;
+    }
+    dest += sprintf((char*)dest, "%02x", source[i]);
+  }
+  return 0;
+}
 
 /*
  * Arguments:
@@ -40,8 +39,9 @@
  * Witness:
  * WitnessArgs with a signature in lock field used to present ownership.
  */
-int verify_secp256k1_keccak_eos_sighash_all(unsigned char* message, unsigned char* eth_address, unsigned char* lock_bytes) {
-
+int verify_secp256k1_keccak_eos_sighash_all(unsigned char* message,
+                                            unsigned char* eth_address,
+                                            unsigned char* lock_bytes) {
   /* split message to words length <= 12 */
 
   int split_message_len = BLAKE2B_BLOCK_SIZE * 2 + 5;
@@ -54,5 +54,4 @@ int verify_secp256k1_keccak_eos_sighash_all(unsigned char* message, unsigned cha
   sha256_final(&sha256_ctx, message);
 
   return verify_signature(message, lock_bytes, eth_address);
-
 }
