@@ -92,6 +92,10 @@ clean:
 	cd deps/secp256k1 && [ -f "Makefile" ] && make clean
 	cargo clean
 
+fmt:
+	clang-format -i -style=Google $(wildcard c/*.h c/*.c)
+	# git diff --exit-code $(wildcard c/*.h c/*.c)
+
 dist: clean all
 
 .PHONY: all all-via-docker dist clean package-clean package publish
