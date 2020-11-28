@@ -13,23 +13,22 @@
  */
 
 #include "ckb_syscalls.h"
+#include "defs.h"
 #include "protocol.h"
+#include "quick_pow10.h"
 #include "secp256k1_helper.h"
 #include "secp256k1_keccak256_lock.h"
-#include "defs.h"
-#include "quick_pow10.h"
 #include "anyone_can_pay_lock.h"
 
 #define BLAKE2B_BLOCK_SIZE 32
 #define BLAKE160_SIZE 20
-#define PUBKEY_SIZE 65  // ETH address uncompress pub key 
+#define PUBKEY_SIZE 65  // ETH address uncompress pub key
 #define TEMP_SIZE 32768
 #define RECID_INDEX 64
 /* 32 KB */
 #define MAX_WITNESS_SIZE 32768
 #define SCRIPT_SIZE 32768
 #define SIGNATURE_SIZE 65
-
 
 #define MAX_OUTPUT_LENGTH 64
 
@@ -38,7 +37,6 @@
 #if (MAX_WITNESS_SIZE > TEMP_SIZE) || (SCRIPT_SIZE > TEMP_SIZE)
 #error "Temp buffer is not big enough!"
 #endif
-
 
 int has_signature(int *has_sig) {
   int ret;
@@ -72,7 +70,6 @@ int has_signature(int *has_sig) {
   *has_sig = lock_bytes_seg.size > 0;
   return CKB_SUCCESS;
 }
-
 
 int read_args(unsigned char *pubkey_hash, uint64_t *min_ckb_amount,
               uint128_t *min_udt_amount) {
@@ -132,7 +129,6 @@ int read_args(unsigned char *pubkey_hash, uint64_t *min_ckb_amount,
  * WitnessArgs with a signature in lock field used to present ownership.
  */
 int main() {
-
   int ret;
   int has_sig;
   unsigned char pubkey_hash[BLAKE160_SIZE];
@@ -153,5 +149,4 @@ int main() {
     /* unlock via payment */
     return check_payment_unlock(min_ckb_amount, min_udt_amount);
   }
-
 }

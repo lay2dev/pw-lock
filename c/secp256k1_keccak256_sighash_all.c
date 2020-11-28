@@ -1,4 +1,4 @@
- /* The script perform secp256k1_keccak256_sighash_all verification. */
+/* The script perform secp256k1_keccak256_sighash_all verification. */
 #include "ckb_syscalls.h"
 #include "protocol.h"
 #include "secp256k1_helper.h"
@@ -6,14 +6,13 @@
 
 #define BLAKE2B_BLOCK_SIZE 32
 #define BLAKE160_SIZE 20
-#define PUBKEY_SIZE 65  // ETH address uncompress pub key 
+#define PUBKEY_SIZE 65  // ETH address uncompress pub key
 #define TEMP_SIZE 32768
 #define RECID_INDEX 64
 /* 32 KB */
 #define MAX_WITNESS_SIZE 32768
 #define SCRIPT_SIZE 32768
 #define SIGNATURE_SIZE 65
-
 
 #define MAX_OUTPUT_LENGTH 64
 
@@ -22,7 +21,6 @@
 #if (MAX_WITNESS_SIZE > TEMP_SIZE) || (SCRIPT_SIZE > TEMP_SIZE)
 #error "Temp buffer is not big enough!"
 #endif
-
 
 /*
  * Arguments:
@@ -33,7 +31,6 @@
  * WitnessArgs with a signature in lock field used to present ownership.
  */
 int main() {
-
   int ret;
   uint64_t len = 0;
 
@@ -62,5 +59,4 @@ int main() {
   }
 
   return verify_secp256k1_keccak_sighash_all(args_bytes_seg.ptr);
-
 }
