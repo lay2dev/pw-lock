@@ -150,6 +150,14 @@ fn gen_tx_with_grouped_args<R: Rng>(
     tx_builder.build()
 }
 
+/// 
+///  witness.lock structure
+///  |---------------|----------------|-------------|--------------|---------------|--------------------------|
+///  |---------------|----------------|-------------|--------------|---------------|--------------------------|
+///  | 0-31 pubkey.x | 32-63 pubkey.y | 64-95 sig.r | 96-127 sig.s | 128-164 authr | 165-565 client_data_json |
+///  |---------------|----------------|-------------|--------------|---------------|--------------------------|
+///  |---------------|----------------|-------------|--------------|---------------|--------------------------|
+/// 
 fn sign_tx_hash(tx: TransactionView, key: &EcKeyRef<Private>, tx_hash: &[u8]) -> TransactionView {
     // calculate message
     let mut hasher = Sha256::default();
@@ -185,14 +193,16 @@ fn sign_tx_hash(tx: TransactionView, key: &EcKeyRef<Private>, tx_hash: &[u8]) ->
     let s = sig.s().to_owned().unwrap().to_vec();
 
     let mut lock = [0u8; R1_SIGNATURE_SIZE];
-    let data_length = 101 + client_data_json_bytes.len();
+    let data_length= client_data_json_bytes.len();
     let r_length = r.len();
     let s_length = s.len();
-
-    lock[(32 - r_length)..32].copy_from_slice(&r);
-    lock[(64 - s_length)..64].copy_from_slice(&s);
-    lock[64..101].copy_from_slice(&authr_data);
-    lock[101..data_length].copy_from_slice(&client_data_json_bytes);
+    let pub_key = r1_pub_key(&key);
+                
+    lock[0..64].copy_from_slice(&pub_key.to_vec());
+    lock[(96 - r_length)..96].copy_from_slice(&r);
+    lock[(128 - s_length)..128].copy_from_slice(&s);
+    lock[128..165].copy_from_slice(&authr_data);
+    lock[165..(165 + data_length)].copy_from_slice(&client_data_json_bytes);
 
     let witness_args = WitnessArgsBuilder::default()
         .lock(lock.to_vec().pack())
@@ -235,14 +245,24 @@ fn build_resolved_tx(data_loader: &DummyDataLoader, tx: &TransactionView) -> Res
     }
 }
 
+fn get_lock_args_from_pubkey(pubkey:Bytes) -> Bytes {
+    let mut hasher = Sha256::default();
+    hasher.update(&pubkey.to_vec());
+    let pubkey_hash = hasher.finalize();
+    let lock_args = Bytes::from(&pubkey_hash.as_slice()[..20]);
+    lock_args
+}
+
+
 #[test]
-fn test_keccak_all_unlock() {
+fn test_r1_all_unlock() {
     let mut data_loader = DummyDataLoader::new();
 
     let privkey = random_r1_key();
-    let pubkey_hash = r1_pub_key(&privkey);
+    let pubkey = r1_pub_key(&privkey);
+    let lock_args = get_lock_args_from_pubkey(pubkey);
 
-    let tx = gen_tx(&mut data_loader, pubkey_hash);
+    let tx = gen_tx(&mut data_loader, lock_args);
     let tx = sign_tx_r1(&mut data_loader, tx, &privkey);
     let resolved_tx = build_resolved_tx(&data_loader, &tx);
     let verify_result =
@@ -255,9 +275,10 @@ fn test_sighash_all_with_extra_witness_unlock() {
     let mut data_loader = DummyDataLoader::new();
 
     let privkey = random_r1_key();
-    let pubkey_hash = r1_pub_key(&privkey);
+    let pubkey = r1_pub_key(&privkey);
+    let lock_args = get_lock_args_from_pubkey(pubkey);
 
-    let tx = gen_tx(&mut data_loader, pubkey_hash);
+    let tx = gen_tx(&mut data_loader, lock_args);
     let extract_witness = vec![1, 2, 3, 4];
     let tx = tx
         .as_advanced_builder()
@@ -305,8 +326,10 @@ fn test_sighash_all_with_grouped_inputs_unlock() {
     let mut rng = thread_rng();
     let mut data_loader = DummyDataLoader::new();
     let privkey = random_r1_key();
-    let pubkey_hash = r1_pub_key(&privkey);
-    let tx = gen_tx_with_grouped_args(&mut data_loader, vec![(pubkey_hash, 2)], &mut rng);
+    let pubkey = r1_pub_key(&privkey);
+    let lock_args = get_lock_args_from_pubkey(pubkey);
+
+    let tx = gen_tx_with_grouped_args(&mut data_loader, vec![(lock_args, 2)], &mut rng);
     {
         let tx = sign_tx_r1(&mut data_loader, tx.clone(), &privkey);
         let resolved_tx = build_resolved_tx(&data_loader, &tx);
@@ -349,15 +372,17 @@ fn test_sighash_all_with_2_different_inputs_unlock() {
     let mut data_loader = DummyDataLoader::new();
     // key1
     let privkey = random_r1_key();
-    let pubkey_hash = r1_pub_key(&privkey);
+    let pubkey = r1_pub_key(&privkey);
+    let lock_args1 = get_lock_args_from_pubkey(pubkey);
     // key2
     let privkey2 = random_r1_key();
-    let pubkey_hash2 = r1_pub_key(&privkey2);
+    let pubkey2 = r1_pub_key(&privkey2);
+    let lock_args2 = get_lock_args_from_pubkey(pubkey2);
 
     // sign with 2 keys
     let tx = gen_tx_with_grouped_args(
         &mut data_loader,
-        vec![(pubkey_hash, 2), (pubkey_hash2, 2)],
+        vec![(lock_args1, 2), (lock_args2, 2)],
         &mut rng,
     );
     let tx = sign_tx_by_input_group_r1(&mut data_loader, tx, &privkey, 0, 2);
@@ -373,11 +398,12 @@ fn test_sighash_all_with_2_different_inputs_unlock() {
 fn test_signing_with_wrong_key() {
     let mut data_loader = DummyDataLoader::new();
     let privkey = random_r1_key();
-    let pubkey_hash = r1_pub_key(&privkey);
+    let pubkey = r1_pub_key(&privkey);
+    let lock_args1 = get_lock_args_from_pubkey(pubkey);
 
     let wrong_privkey = random_r1_key();
 
-    let tx = gen_tx(&mut data_loader, pubkey_hash);
+    let tx = gen_tx(&mut data_loader, lock_args1);
     let tx = sign_tx_r1(&mut data_loader, tx, &wrong_privkey);
     let resolved_tx = build_resolved_tx(&data_loader, &tx);
     let verify_result =
@@ -392,9 +418,10 @@ fn test_signing_with_wrong_key() {
 fn test_signing_wrong_tx_hash() {
     let mut data_loader = DummyDataLoader::new();
     let privkey = random_r1_key();
-    let pubkey_hash = r1_pub_key(&privkey);
+    let pubkey = r1_pub_key(&privkey);
+    let lock_args1 = get_lock_args_from_pubkey(pubkey);
 
-    let tx = gen_tx(&mut data_loader, pubkey_hash);
+    let tx = gen_tx(&mut data_loader, lock_args1);
     let tx = {
         let mut rand_tx_hash = [0u8; 32];
         let mut rng = thread_rng();
@@ -414,8 +441,9 @@ fn test_signing_wrong_tx_hash() {
 fn test_super_long_witness() {
     let mut data_loader = DummyDataLoader::new();
     let privkey = random_r1_key();
-    let pubkey_hash = r1_pub_key(&privkey);
-    let tx = gen_tx(&mut data_loader, pubkey_hash);
+    let pubkey = r1_pub_key(&privkey);
+    let lock_args1 = get_lock_args_from_pubkey(pubkey);
+    let tx = gen_tx(&mut data_loader, lock_args1);
     let tx_hash = tx.hash();
 
     let mut buffer: Vec<u8> = vec![];
@@ -463,15 +491,17 @@ fn test_sighash_all_2_in_2_out_cycles() {
 
     // key1
     let privkey = random_r1_key();
-    let pubkey_hash = r1_pub_key(&privkey);
+    let pubkey = r1_pub_key(&privkey);
+    let lock_args1 = get_lock_args_from_pubkey(pubkey);
     // key2
     let privkey2 = random_r1_key();
-    let pubkey_hash2 = r1_pub_key(&privkey2);
+    let pubkey2 = r1_pub_key(&privkey2);
+    let lock_args2 = get_lock_args_from_pubkey(pubkey2);
 
     // sign with 2 keys
     let tx = gen_tx_with_grouped_args(
         &mut data_loader,
-        vec![(pubkey_hash, 1), (pubkey_hash2, 1)],
+        vec![(lock_args1, 1), (lock_args2, 1)],
         &mut rng,
     );
     let tx = sign_tx_by_input_group_r1(&mut data_loader, tx, &privkey, 0, 1);
@@ -489,10 +519,11 @@ fn test_sighash_all_witness_append_junk_data() {
     let mut rng = thread_rng();
     let mut data_loader = DummyDataLoader::new();
     let privkey = random_r1_key();
-    let pubkey_hash = r1_pub_key(&privkey);
+    let pubkey = r1_pub_key(&privkey);
+    let lock_args = get_lock_args_from_pubkey(pubkey);
 
     // sign with 2 keys
-    let tx = gen_tx_with_grouped_args(&mut data_loader, vec![(pubkey_hash, 2)], &mut rng);
+    let tx = gen_tx_with_grouped_args(&mut data_loader, vec![(lock_args, 2)], &mut rng);
     let tx = sign_tx_by_input_group_r1(&mut data_loader, tx, &privkey, 0, 2);
     let mut witnesses: Vec<_> = Unpack::<Vec<_>>::unpack(&tx.witnesses());
     // append junk data to first witness
@@ -526,9 +557,10 @@ fn test_sighash_all_witness_args_ambiguity() {
     let mut rng = thread_rng();
     let mut data_loader = DummyDataLoader::new();
     let privkey = random_r1_key();
-    let pubkey_hash = r1_pub_key(&privkey);
+    let pubkey = r1_pub_key(&privkey);
+    let lock_args = get_lock_args_from_pubkey(pubkey);
 
-    let tx = gen_tx_with_grouped_args(&mut data_loader, vec![(pubkey_hash, 2)], &mut rng);
+    let tx = gen_tx_with_grouped_args(&mut data_loader, vec![(lock_args, 2)], &mut rng);
     let tx = sign_tx_by_input_group_r1(&mut data_loader, tx, &privkey, 0, 2);
     let witnesses: Vec<_> = Unpack::<Vec<_>>::unpack(&tx.witnesses());
     // move extra data to type_
@@ -569,9 +601,10 @@ fn test_sighash_all_witnesses_ambiguity() {
     let mut rng = thread_rng();
     let mut data_loader = DummyDataLoader::new();
     let privkey = random_r1_key();
-    let pubkey_hash = r1_pub_key(&privkey);
+    let pubkey = r1_pub_key(&privkey);
+    let lock_args = get_lock_args_from_pubkey(pubkey);
 
-    let tx = gen_tx_with_grouped_args(&mut data_loader, vec![(pubkey_hash, 3)], &mut rng);
+    let tx = gen_tx_with_grouped_args(&mut data_loader, vec![(lock_args, 3)], &mut rng);
     let witness = Unpack::<Vec<_>>::unpack(&tx.witnesses()).remove(0);
     let tx = tx
         .as_advanced_builder()
@@ -609,9 +642,10 @@ fn test_sighash_all_cover_extra_witnesses() {
     let mut rng = thread_rng();
     let mut data_loader = DummyDataLoader::new();
     let privkey = random_r1_key();
-    let pubkey_hash = r1_pub_key(&privkey);
+    let pubkey = r1_pub_key(&privkey);
+    let lock_args = get_lock_args_from_pubkey(pubkey);
 
-    let tx = gen_tx_with_grouped_args(&mut data_loader, vec![(pubkey_hash, 2)], &mut rng);
+    let tx = gen_tx_with_grouped_args(&mut data_loader, vec![(lock_args, 2)], &mut rng);
     let witness = Unpack::<Vec<_>>::unpack(&tx.witnesses()).remove(0);
     let tx = tx
         .as_advanced_builder()

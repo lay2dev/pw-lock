@@ -15,7 +15,7 @@ use ckb_types::{
     prelude::*,
     H256,
 };
-use rand::{thread_rng, Rng, SeedableRng};
+use rand::{thread_rng, Rng};
 
 use sha3::{Digest, Keccak256};
 
