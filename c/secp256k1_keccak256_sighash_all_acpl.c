@@ -17,26 +17,8 @@
 #include "protocol.h"
 #include "quick_pow10.h"
 #include "secp256k1_helper.h"
-#include "secp256k1_keccak256_lock.h"
+#include "secp256k1_keccak256_lock_all.h"
 #include "anyone_can_pay_lock.h"
-
-#define BLAKE2B_BLOCK_SIZE 32
-#define BLAKE160_SIZE 20
-#define PUBKEY_SIZE 65  // ETH address uncompress pub key
-#define TEMP_SIZE 32768
-#define RECID_INDEX 64
-/* 32 KB */
-#define MAX_WITNESS_SIZE 32768
-#define SCRIPT_SIZE 32768
-#define SIGNATURE_SIZE 65
-
-#define MAX_OUTPUT_LENGTH 64
-
-#define ERROR_TOO_MANY_OUTPUT_CELLS -18
-
-#if (MAX_WITNESS_SIZE > TEMP_SIZE) || (SCRIPT_SIZE > TEMP_SIZE)
-#error "Temp buffer is not big enough!"
-#endif
 
 int has_signature(int *has_sig) {
   int ret;
@@ -96,22 +78,22 @@ int read_args(unsigned char *pubkey_hash, uint64_t *min_ckb_amount,
 
   mol_seg_t args_seg = MolReader_Script_get_args(&script_seg);
   mol_seg_t args_bytes_seg = MolReader_Bytes_raw_bytes(&args_seg);
-  if (args_bytes_seg.size < BLAKE160_SIZE ||
-      args_bytes_seg.size > BLAKE160_SIZE + 2) {
+  if (args_bytes_seg.size < LOC_ARGS_SIZE ||
+      args_bytes_seg.size > LOC_ARGS_SIZE + 2) {
     return ERROR_ARGUMENTS_LEN;
   }
-  memcpy(pubkey_hash, args_bytes_seg.ptr, BLAKE160_SIZE);
+  memcpy(pubkey_hash, args_bytes_seg.ptr, LOC_ARGS_SIZE);
   *min_ckb_amount = 0;
   *min_udt_amount = 0;
-  if (args_bytes_seg.size > BLAKE160_SIZE) {
-    int x = args_bytes_seg.ptr[BLAKE160_SIZE];
+  if (args_bytes_seg.size > LOC_ARGS_SIZE) {
+    int x = args_bytes_seg.ptr[LOC_ARGS_SIZE];
     int is_overflow = quick_pow10(x, min_ckb_amount);
     if (is_overflow) {
       *min_ckb_amount = MAX_UINT64;
     }
   }
-  if (args_bytes_seg.size > BLAKE160_SIZE + 1) {
-    int x = args_bytes_seg.ptr[BLAKE160_SIZE + 1];
+  if (args_bytes_seg.size > LOC_ARGS_SIZE + 1) {
+    int x = args_bytes_seg.ptr[LOC_ARGS_SIZE + 1];
     int is_overflow = uint128_quick_pow10(x, min_udt_amount);
     if (is_overflow) {
       *min_udt_amount = MAX_UINT128;
@@ -120,18 +102,10 @@ int read_args(unsigned char *pubkey_hash, uint64_t *min_ckb_amount,
   return CKB_SUCCESS;
 }
 
-/*
- * Arguments:
- * ethereum address, keccak256 hash of pubkey last 20 bytes, used to
- * shield the real pubkey.
- *
- * Witness:
- * WitnessArgs with a signature in lock field used to present ownership.
- */
 int main() {
   int ret;
   int has_sig;
-  unsigned char pubkey_hash[BLAKE160_SIZE];
+  unsigned char pubkey_hash[LOC_ARGS_SIZE];
   uint64_t min_ckb_amount;
   uint128_t min_udt_amount;
   ret = read_args(pubkey_hash, &min_ckb_amount, &min_udt_amount);

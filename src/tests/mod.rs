@@ -51,14 +51,11 @@ lazy_static! {
         Bytes::from(&include_bytes!("../../specs/cells/secp256k1_keccak256_sighash_all_acpl")[..]);
     pub static ref SECP256R1_SHA256_SIGHASH_BIN: Bytes =
         Bytes::from(&include_bytes!("../../specs/cells/secp256r1_sha256_sighash")[..]);
-    pub static ref CKB_CELL_UPGRADE_BIN: Bytes =
-        Bytes::from(&include_bytes!("../../specs/cells/ckb_cell_upgrade")[..]);
 }
 
 pub fn get_current_chain_id() -> u8 {
     if let Ok(v) = env::var("CHAIN_ID") {
        let chain_id= u8::from_str_radix(&v, 16).unwrap();
-    //    println!("current chain id {}", chain_id);
        chain_id 
     } else {
         1

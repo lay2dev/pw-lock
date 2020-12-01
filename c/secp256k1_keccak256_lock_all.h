@@ -1,3 +1,5 @@
+/* The file perform signature verification from Ethereum/EOS/Tron signed by
+ * wallet  */
 #include "common.h"
 #include "libsig.h"
 #include "secp256k1_keccak256_helper.h"
@@ -5,23 +7,18 @@
 #include "secp256k1_keccak256_lock_eth.h"
 #include "secp256k1_keccak256_lock_tron.h"
 
-#define BLAKE2B_BLOCK_SIZE 32
-#define BLAKE160_SIZE 20
-#define PUBKEY_SIZE 65  // ETH address uncompress pub key
-#define TEMP_SIZE 32768
-#define RECID_INDEX 64
-/* 32 KB */
-#define MAX_WITNESS_SIZE 32768
-#define SCRIPT_SIZE 32768
-#define SIGNATURE_SIZE 65
-
-#if (MAX_WITNESS_SIZE > TEMP_SIZE) || (SCRIPT_SIZE > TEMP_SIZE)
-#error "Temp buffer is not big enough!"
-#endif
-
+/**
+ * verify transaction signature signed by wallets.
+ * get wallet type by first byte of witness.lock
+ * 1 = Ethereum 2 = EOS  3 = TRON
+ *
+ * @param eth_address keccak256 hash of pubkey last 20 bytes, used to shield the
+ * real pubkey.
+ *
+ */
 int verify_secp256k1_keccak_sighash_all(unsigned char* eth_address) {
   int ret;
-  unsigned char message[BLAKE2B_BLOCK_SIZE];
+  unsigned char message[HASH_SIZE];
   unsigned char lock_bytes[SIGNATURE_SIZE];
   uint64_t chain_id;
 

@@ -1,4 +1,7 @@
-
+/* This file add anyone can pay capability for pw-lock, anyone can pay
+ * refer to
+ * https://github.com/nervosnetwork/ckb-production-scripts/blob/master/c/anyone_can_pay.c
+ */
 
 #include "ckb_syscalls.h"
 #include "overflow_add.h"

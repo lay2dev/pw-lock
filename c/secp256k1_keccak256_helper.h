@@ -1,10 +1,16 @@
+/**
+ *  This file provide 2 API:
+ *  1. secp256k1 verification
+ *  2. message digest calacation and chain_id/siganture extraction
+ *
+ */
 #include "ckb_syscalls.h"
 #include "keccak256.h"
 #include "protocol.h"
 #include "secp256k1_helper.h"
 
-#define BLAKE2B_BLOCK_SIZE 32
-#define BLAKE160_SIZE 20
+#define HASH_SIZE 32
+#define LOC_ARGS_SIZE 20
 #define PUBKEY_SIZE 65  // ETH address uncompress pub key
 #define TEMP_SIZE 32768
 #define RECID_INDEX 64
@@ -12,20 +18,20 @@
 #define MAX_WITNESS_SIZE 32768
 #define SCRIPT_SIZE 32768
 #define SIGNATURE_SIZE 65
+#define MAX_OUTPUT_LENGTH 64
+#define ERROR_TOO_MANY_OUTPUT_CELLS -18
 
 #if (MAX_WITNESS_SIZE > TEMP_SIZE) || (SCRIPT_SIZE > TEMP_SIZE)
 #error "Temp buffer is not big enough!"
 #endif
 
-/*
+/**
  * Verify secp256k1 signature, check the kecack256 hash of pubkey recovered from
  * signature is equal with the lock script arg.
  *
- * Arguments:
- * message,  the calculated hash of ckb transaciton.
- * lock_bytes, the signature from transcation witness.
- * lock_args, the args of lock script.
- *
+ * @param message  the calculated hash of ckb transaciton.
+ * @param lock_bytes the signature from transcation witness.
+ * @param lock_args the args of lock script.
  *
  */
 int verify_signature(unsigned char *message, unsigned char *lock_bytes,
@@ -64,13 +70,22 @@ int verify_signature(unsigned char *message, unsigned char *lock_bytes,
   keccak_update(&sha3_ctx, &temp[1], pubkey_size - 1);
   keccak_final(&sha3_ctx, temp);
 
-  if (memcmp(lock_args, &temp[12], BLAKE160_SIZE) != 0) {
+  if (memcmp(lock_args, &temp[12], LOC_ARGS_SIZE) != 0) {
     return ERROR_PUBKEY_BLAKE160_HASH;
   }
 
   return CKB_SUCCESS;
 }
 
+/**
+ * extract wallet type and signature from witness.lock, and calculate tx message
+ * digest with keccak256 hash algorithm
+ *
+ * @param chain_id wallet type, 1 = Ethereum 2 = EOS 3 = TRON
+ * @param message message digest of transaction
+ * @param lock_bytes signature
+ *
+ */
 int get_signature_from_trancation(uint64_t *chain_id, unsigned char *message,
                                   unsigned char *lock_bytes) {
   int ret;
@@ -100,6 +115,7 @@ int get_signature_from_trancation(uint64_t *chain_id, unsigned char *message,
     return ERROR_ARGUMENTS_LEN;
   }
 
+  /* in order to compatible with old version pw-lock with length of 65 bytes */
   if (lock_bytes_seg.size == SIGNATURE_SIZE) {
     *chain_id = 1;
     memcpy(lock_bytes, lock_bytes_seg.ptr, SIGNATURE_SIZE);
@@ -110,20 +126,20 @@ int get_signature_from_trancation(uint64_t *chain_id, unsigned char *message,
   }
 
   /* Load tx hash */
-  unsigned char tx_hash[BLAKE2B_BLOCK_SIZE];
-  len = BLAKE2B_BLOCK_SIZE;
+  unsigned char tx_hash[HASH_SIZE];
+  len = HASH_SIZE;
   ret = ckb_load_tx_hash(tx_hash, &len, 0);
   if (ret != CKB_SUCCESS) {
     return ret;
   }
-  if (len != BLAKE2B_BLOCK_SIZE) {
+  if (len != HASH_SIZE) {
     return ERROR_SYSCALL;
   }
 
   /* Prepare sign message */
   SHA3_CTX sha3_ctx;
   keccak_init(&sha3_ctx);
-  keccak_update(&sha3_ctx, tx_hash, BLAKE2B_BLOCK_SIZE);
+  keccak_update(&sha3_ctx, tx_hash, HASH_SIZE);
 
   /* Clear lock field to zero, then digest the first witness */
   memset((void *)lock_bytes_seg.ptr, 0, lock_bytes_seg.size);

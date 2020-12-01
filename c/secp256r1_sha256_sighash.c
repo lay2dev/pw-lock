@@ -1,4 +1,37 @@
-/* for testing purpose */
+/* ES256 signature verification script for Webauthn scenario
+ *
+ * This script can only verify the signature from webauthn api.
+ *https://webauthn.guide/#authentication For simplify we call a cell with this
+ *lock a r1-lock cell.
+ *
+ * The signature build process is as follow:
+ * 1. build a ckb transaction with r1-lock cell as input cells.
+ * 2. calculate the tx message digest for the transaction as ckb system script
+ *hash way, only except replace the blake2b hash algorithm with sha256.
+ * 3. make a webauthn publicKeyCredentialRequestOptions for webauthn, take the
+ *message digest of step2 as the challenge of client data.
+ * 4. make a authentication request for user to get the assertion by calling
+ *navigator.credentials.get()
+ * 5. extract signature from the assertion, then build CKB tx witnesses based on
+ *the signature and related info.
+ *
+ * witness structures:
+ *|-----------|-----------|-----------|------------|-------------|-------------|
+ *|---0-31----|---32-63 --|---64-95---|---96-127---|---128-164---|---165-565---|
+ *|  pubkey.x |  pubkey.y |  sig.r    |  sig.s     |    authr    | client_data |
+ *|-----------|-----------|-----------|------------|-------------|-------------|
+ *|-----------|-----------|-----------|------------|-------------|-------------|
+ *
+ * client_data_json example:
+ *{
+ *  "type": "webauthn.get",
+ *  "challenge": "S1TsVwxDkO4ZbNa2EJvywNWS9prOay0x_uCTIv4cHs4",
+ *  "origin": "https://r1-demo.ckb.pw",
+ *  "crossOrigin": false
+ *}
+ * we need to set challenge of client data json with CKB tx message
+ *
+ */
 
 #include "b64.h"
 #include "common.h"
@@ -8,7 +41,7 @@
 #define SHA256_CTX sha256_context
 #define HASH_SIZE 32
 #define LOCK_ARGS_SIZE 20
-#define R1_PUBKEY_SIZE 64
+#define R1_PUBKEY_SIZE 64  // UNCOMPRESSED PUB KEY (x, y)
 #define TEMP_SIZE 32768
 #define RECID_INDEX 64
 /* 32 KB */
@@ -54,8 +87,16 @@ int pub_key_import_from_aff_buf(ec_pub_key* pub_key, const ec_params* params,
   return 0;
 }
 
-int verify_challenge_in_client_data(const u8* challenge, const u8* client_data,
-                                    u8 client_data_len) {
+/**
+ * check the challenge of client data json is equal to tx message digest
+ * @param digest_message transation digest message
+ * @param client_data the client data represents the contextual bindings of both
+ * the WebAuthn Relying Party and the client
+ * @param client_data_len the length of client data
+ *
+ */
+int verify_challenge_in_client_data(const u8* digest_message,
+                                    const u8* client_data, u8 client_data_len) {
   u8 challenge_b64[44];
   u8 challenge_decode[33];
   size_t challenge_decode_len = 33;
@@ -69,6 +110,7 @@ int verify_challenge_in_client_data(const u8* challenge, const u8* client_data,
   int challenge_b64_start = 0;
   int challenge_b64_len = 0;
 
+  /* extract challenge value from client data*/
   int i = 0;
   while (i < client_data_len - prefix_len) {
     if (memcmp(client_data + i, prefix, prefix_len) == 0) {
@@ -103,14 +145,23 @@ int verify_challenge_in_client_data(const u8* challenge, const u8* client_data,
 
   urlsafe_b64_decode((const char*)challenge_b64, 44, challenge_decode,
                      &challenge_decode_len);
+
+  /* compare the challenge of client data with the tx message digest */
   if (challenge_decode_len == 32 &&
-      memcmp(challenge_decode, challenge, 32) == 0) {
+      memcmp(challenge_decode, digest_message, 32) == 0) {
     return 0;
   }
 
   return ERROR_WRONG_CHALLENGE;
 }
 
+/**
+ * verify secp256 r1 signature with pubkey
+ *
+ * @param pub_key_buffer public key for signature verification
+ * @param data
+ * @param sig ES256 signature from web authn
+ */
 int verify_secp256r1_signature(const u8* pub_key_buffer, const u8* data,
                                const u8* sig) {
   int ret;
@@ -132,8 +183,6 @@ int verify_secp256r1_signature(const u8* pub_key_buffer, const u8* data,
     return 11;
   }
 
-  // ec_structured_pub_key_import_from_buf(&pub_key, &params, pub_key_buffer,
-  // pub_key_buffer_len, 1);
   ret = pub_key_import_from_aff_buf(&pub_key, &params, pub_key_buffer,
                                     pub_key_buffer_len, 1);
 

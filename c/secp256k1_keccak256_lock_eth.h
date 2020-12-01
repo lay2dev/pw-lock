@@ -1,33 +1,19 @@
+/**
+ * The file perform ethereum wallet signature verification.
+ * Both of the below two signatures are suppported.
+ *    1. web3.eth.personalSign
+ *    2. web3.eth.signTypedData_v4
+ *
+ */
 #include "bech32.h"
-
-#define BLAKE2B_BLOCK_SIZE 32
-#define BLAKE160_SIZE 20
-#define PUBKEY_SIZE 65  // ETH address uncompress pub key
-#define TEMP_SIZE 32768
-#define RECID_INDEX 64
-/* 32 KB */
-#define MAX_WITNESS_SIZE 32768
-#define SCRIPT_SIZE 32768
-#define SIGNATURE_SIZE 65
-
 #define CKB_ADDRESS_PREFIX "ckb"
-
 #define ENABLE_EIP712 false
 
-#define MAX_OUTPUT_LENGTH 64
-
-#define ERROR_TOO_MANY_OUTPUT_CELLS -18
-
-#if (MAX_WITNESS_SIZE > TEMP_SIZE) || (SCRIPT_SIZE > TEMP_SIZE)
-#error "Temp buffer is not big enough!"
-#endif
-
-/*
+/**
  * Format CKB address by lock script, and get the keccak256 hash of CKB address.
  *
- * Arguments:
- * script_seg, lock script segment
- * hash, the returned hash of ckb address
+ * @param script_seg lock script segment
+ * @param hash the returned hash of ckb address
  *
  */
 int hash_address(mol_seg_t *script_seg, unsigned char *hash) {
@@ -116,13 +102,12 @@ int hash_address(mol_seg_t *script_seg, unsigned char *hash) {
   return CKB_SUCCESS;
 }
 
-/*
+/**
  * Format amount to number with 8 decimals and ended with "CKB", get the
  * keccak256 hash of the amount string
  *
- * Arguments:
- * capacity, the capacity of the output cell
- * hash, the returned keccak256 hash of amount string
+ * @param capacity, the capacity of the output cell
+ * @param hash the returned keccak256 hash of amount string
  */
 int hash_amount(uint64_t capacity, unsigned char *hash) {
   unsigned char amount[100];
@@ -139,7 +124,7 @@ int hash_amount(uint64_t capacity, unsigned char *hash) {
   return CKB_SUCCESS;
 }
 
-/*
+/**
  * Calculate the EIP712 typed data hash for a CKB transcation.
  * The format of typed data is as follows:
  * {
@@ -184,9 +169,8 @@ int hash_amount(uint64_t capacity, unsigned char *hash) {
  *   },
  * }
  *
- * Arguments:
- * tx_message, the ethereum personal signed hash of transaction body.
- * type_data_hash, the returned calculated typed data hash
+ * @param tx_message the ethereum personal signed hash of transaction body.
+ * @param type_data_hash the returned calculated typed data hash
  *
  */
 int calculate_typed_data(unsigned char *tx_message,
@@ -210,27 +194,27 @@ int calculate_typed_data(unsigned char *tx_message,
   /* hash for type CKBTransaction, is equal to
    * web3utils.sha3('CKBTransaction(bytes32 hash,string fee,string
    * input-sum,Output[] to)Output(string address,string amount)') */
-  unsigned char CKBTRANSACTION_TYPEHASH[BLAKE2B_BLOCK_SIZE] = {
+  unsigned char CKBTRANSACTION_TYPEHASH[HASH_SIZE] = {
       0x17, 0xe4, 0x04, 0xd0, 0xcd, 0xcc, 0x43, 0x1e, 0xe6, 0xdf, 0x80,
       0x7a, 0xbc, 0xcc, 0x69, 0x5d, 0x95, 0xd0, 0x38, 0xf5, 0x76, 0x47,
       0xe2, 0xef, 0x92, 0xb9, 0x68, 0x66, 0xca, 0xe5, 0x9d, 0x04};
   /* hash for type Output, is equal to web3utils.sha3('Output(string
    * address,string amount)') */
-  unsigned char OUTPUT_TYPEHASH[BLAKE2B_BLOCK_SIZE] = {
+  unsigned char OUTPUT_TYPEHASH[HASH_SIZE] = {
       0xef, 0xdd, 0x9a, 0xc6, 0xc9, 0x8f, 0xcb, 0xab, 0xc5, 0x2e, 0xf1,
       0xd8, 0xa4, 0xd3, 0xac, 0xcd, 0x43, 0x96, 0x36, 0x2a, 0x21, 0x1c,
       0xbf, 0x7a, 0x3c, 0x20, 0xc2, 0x89, 0x22, 0x08, 0x19, 0x13};
   /* hash for domain separator, is equal to web3utils.sha3("EIP712Domain(string
    * name,string version,uint256 chainId,address verifyingContract)") */
-  unsigned char DOMAIN_SEPARATOR[BLAKE2B_BLOCK_SIZE] = {
+  unsigned char DOMAIN_SEPARATOR[HASH_SIZE] = {
       0xec, 0x9e, 0x64, 0xcb, 0x49, 0x31, 0x37, 0x85, 0x0e, 0x3d, 0x5d,
       0x47, 0x3c, 0xa1, 0x09, 0xea, 0xe1, 0x47, 0xad, 0xb8, 0xa6, 0xbf,
       0x46, 0x0b, 0xf2, 0x06, 0xe9, 0x0f, 0x62, 0x64, 0x2e, 0x3f,
   };
 
-  unsigned char address_hash[BLAKE2B_BLOCK_SIZE];
-  unsigned char amount_hash[BLAKE2B_BLOCK_SIZE];
-  unsigned char message[BLAKE2B_BLOCK_SIZE];
+  unsigned char address_hash[HASH_SIZE];
+  unsigned char amount_hash[HASH_SIZE];
+  unsigned char message[HASH_SIZE];
 
   /* calculate the total input capacities of tx */
   while (1) {
@@ -359,7 +343,7 @@ int calculate_typed_data(unsigned char *tx_message,
   return CKB_SUCCESS;
 }
 
-/*
+/**
  * Verify the transaction using secp256k1 as sig algorithm and keccak256 as hash
  * algorithm.
  *
@@ -368,12 +352,12 @@ int calculate_typed_data(unsigned char *tx_message,
  * 1. ethereum peronsal hash
  * 2. EIP712 typed data hash
  *
- * Arguments:
- * eth_address, keccak256 hash of pubkey last 20 bytes, used to shield the real
- * pubkey.
+ * @param message the transaction digest message with keccak256 hash algorithm
+ * @param eth_address keccak256 hash of pubkey last 20 bytes, used to shield the
+ * real pubkey.
+ * @param lock_bytes  a signature in witness.lock field used to present
+ * ownership.
  *
- * Witness:
- * WitnessArgs with a signature in lock field used to present ownership.
  */
 int verify_secp256k1_keccak_eth_sighash_all(unsigned char *message,
                                             unsigned char *eth_address,
