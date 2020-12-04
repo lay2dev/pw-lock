@@ -60,27 +60,6 @@ fn gen_tx_with_grouped_args<R: Rng>(
         sighash_all_out_point.clone(),
         (sighash_all_cell, SECP256R1_SHA256_SIGHASH_BIN.clone()),
     );
-    // // setup secp256k1_data dep
-    // let secp256k1_data_out_point = {
-    //     let tx_hash = {
-    //         let mut buf = [0u8; 32];
-    //         rng.fill(&mut buf);
-    //         buf.pack()
-    //     };
-    //     OutPoint::new(tx_hash, 0)
-    // };
-    // let secp256k1_data_cell = CellOutput::new_builder()
-    //     .capacity(
-    //         Capacity::bytes(SECP256K1_DATA_BIN.len())
-    //             .expect("data capacity")
-    //             .pack(),
-    //     )
-    //     .build();
-    // dummy.cells.insert(
-    //     secp256k1_data_out_point.clone(),
-    //     (secp256k1_data_cell, SECP256K1_DATA_BIN.clone()),
-    // );
-    // setup default tx builder
 
     let block_assembler_code_hash: [u8; 32] = [
         0x9b, 0xd7, 0xe0, 0x6f, 0x3e, 0xcf, 0x4b, 0xe0, 0xf2, 0xfc, 0xd2, 0x18, 0x8b, 0x23, 0xf1,
@@ -100,12 +79,6 @@ fn gen_tx_with_grouped_args<R: Rng>(
                 .dep_type(DepType::Code.into())
                 .build(),
         )
-        // .cell_dep(
-        //     CellDep::new_builder()
-        //         .out_point(secp256k1_data_out_point)
-        //         .dep_type(DepType::Code.into())
-        //         .build(),
-        // )
         .output(
             CellOutput::new_builder()
                 .capacity(dummy_capacity.pack())
@@ -150,14 +123,13 @@ fn gen_tx_with_grouped_args<R: Rng>(
     tx_builder.build()
 }
 
-/// 
-///  witness.lock structure
-///  |---------------|----------------|-------------|--------------|---------------|--------------------------|
-///  |---------------|----------------|-------------|--------------|---------------|--------------------------|
-///  | 0-31 pubkey.x | 32-63 pubkey.y | 64-95 sig.r | 96-127 sig.s | 128-164 authr | 165-565 client_data_json |
-///  |---------------|----------------|-------------|--------------|---------------|--------------------------|
-///  |---------------|----------------|-------------|--------------|---------------|--------------------------|
-/// 
+/// witness structures:
+/// |-----------|-----------|-----------|------------|-------------|-------------|
+/// |---0-31----|---32-63 --|---64-95---|---96-127---|---128-164---|---165-563---|
+/// |  pubkey.x |  pubkey.y |  sig.r    |  sig.s     |    authr    | client_data |
+/// |-----------|-----------|-----------|------------|-------------|-------------|
+/// |-----------|-----------|-----------|------------|-------------|-------------|
+///
 fn sign_tx_hash(tx: TransactionView, key: &EcKeyRef<Private>, tx_hash: &[u8]) -> TransactionView {
     // calculate message
     let mut hasher = Sha256::default();
@@ -193,11 +165,10 @@ fn sign_tx_hash(tx: TransactionView, key: &EcKeyRef<Private>, tx_hash: &[u8]) ->
     let s = sig.s().to_owned().unwrap().to_vec();
 
     let mut lock = [0u8; R1_SIGNATURE_SIZE];
-    let data_length= client_data_json_bytes.len();
+    let data_length = client_data_json_bytes.len();
     let r_length = r.len();
     let s_length = s.len();
     let pub_key = r1_pub_key(&key);
-                
     lock[0..64].copy_from_slice(&pub_key.to_vec());
     lock[(96 - r_length)..96].copy_from_slice(&r);
     lock[(128 - s_length)..128].copy_from_slice(&s);
@@ -245,14 +216,13 @@ fn build_resolved_tx(data_loader: &DummyDataLoader, tx: &TransactionView) -> Res
     }
 }
 
-fn get_lock_args_from_pubkey(pubkey:Bytes) -> Bytes {
+fn get_lock_args_from_pubkey(pubkey: Bytes) -> Bytes {
     let mut hasher = Sha256::default();
     hasher.update(&pubkey.to_vec());
     let pubkey_hash = hasher.finalize();
     let lock_args = Bytes::from(&pubkey_hash.as_slice()[..20]);
     lock_args
 }
-
 
 #[test]
 fn test_r1_all_unlock() {

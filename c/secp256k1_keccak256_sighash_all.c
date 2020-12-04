@@ -4,6 +4,19 @@
 #include "secp256k1_helper.h"
 #include "secp256k1_keccak256_lock_all.h"
 
+/**
+ * The script args part should contain the last 20 bytes of keccak256 hash of a
+ * public key, which is the same as ethereum address generation. This is used to
+ * shield the real public key till the first spend.
+ *
+ * The first witness, or the first witness of the same index as the first input
+ * cell using current lock  script, should be a
+ * [WitnessArgs](https://github.com/nervosnetwork/ckb/blob/1df5f2c1cbf07e04622fb8faa5b152c1af7ae341/util/types/schemas/blockchain.mol#L106)
+ * object in molecule serialization format.
+ * The lock field of said WitnessArgs object should contain a 1-byte chain flag
+ * and a 65-byte recoverable signature to prove ownership.
+ *
+ */
 int main() {
   int ret;
   uint64_t len = 0;

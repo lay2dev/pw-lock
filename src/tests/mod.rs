@@ -101,7 +101,6 @@ impl DataLoader for DummyDataLoader {
     }
 }
 
-// pub fn eth160(message: &[u8]) -> Bytes {
 pub fn eth160(pubkey1: Pubkey) -> Bytes {
     let prefix_key: [u8; 65] = {
         let mut temp = [4u8; 65];
@@ -111,8 +110,6 @@ pub fn eth160(pubkey1: Pubkey) -> Bytes {
     };
     let pubkey = key::PublicKey::from_slice(&prefix_key).unwrap();
     let message = Vec::from(&pubkey.serialize_uncompressed()[1..]);
-    // let message = Vec::from(&pubkey.serialize()[..]);
-
     // println!("{}", faster_hex::hex_string(&message).unwrap());
     // println!("{}", faster_hex::hex_string(&message1).unwrap());
 
@@ -126,8 +123,17 @@ pub fn sign_tx_keccak256(
     tx: TransactionView,
     key: &Privkey,
 ) -> TransactionView {
+    sign_tx_keccak256_with_flag(dummy, tx, key, true)
+}
+
+pub fn sign_tx_keccak256_with_flag(
+    dummy: &mut DummyDataLoader,
+    tx: TransactionView,
+    key: &Privkey,
+    set_chain_flag: bool
+) -> TransactionView {
     let witnesses_len = tx.witnesses().len();
-    sign_tx_by_input_group_keccak256(dummy, tx, key, 0, witnesses_len)
+    sign_tx_by_input_group_keccak256_flag(dummy, tx, key, 0, witnesses_len, set_chain_flag)
 }
 
 pub fn sign_tx_by_input_group_keccak256(
@@ -137,42 +143,60 @@ pub fn sign_tx_by_input_group_keccak256(
     begin_index: usize,
     len: usize,
 ) -> TransactionView {
+    sign_tx_by_input_group_keccak256_flag(dummy, tx, key, begin_index, len, true)
+}
+
+pub fn sign_tx_by_input_group_keccak256_flag(
+    dummy: &mut DummyDataLoader,
+    tx: TransactionView,
+    key: &Privkey,
+    begin_index: usize,
+    len: usize,
+    set_chain_flag: bool
+) -> TransactionView {
     let tx_hash = tx.hash();
     let mut signed_witnesses: Vec<packed::Bytes> = tx
         .inputs()
         .into_iter()
         .enumerate()
-        .map(|(i, _)| {
+        .map(|(i, _)| -> packed::Bytes {
             if i == begin_index {
-                // let mut blake2b = ckb_hash::new_blake2b();
                 let mut hasher = Keccak256::default();
                 let mut message = [0u8; 32];
 
-                // blake2b.update(&tx_hash.raw_data());
+                let lock_size = match set_chain_flag {
+                    true => SIGNATURE_SIZE + 1,
+                    false => SIGNATURE_SIZE
+                };
+
+                let start_index = match set_chain_flag {
+                    true => 1,
+                    false => 0
+                };
+
+                let end_index = start_index + SIGNATURE_SIZE;
+
                 hasher.input(&tx_hash.raw_data());
                 // digest the first witness
                 let witness = WitnessArgs::new_unchecked(tx.witnesses().get(i).unwrap().unpack());
                 let zero_lock: Bytes = {
                     let mut buf = Vec::new();
-                    buf.resize(SIGNATURE_SIZE + 1, 0);
+                    buf.resize(lock_size, 0);
                     buf.into()
                 };
-                let mut lock = [0u8; SIGNATURE_SIZE + 1];
+                let mut lock =   [0u8; SIGNATURE_SIZE + 1];
+                
                 lock[0] = get_current_chain_id();
 
                 let witness_for_digest =
                     witness.clone().as_builder().lock(zero_lock.pack()).build();
                 let witness_len = witness_for_digest.as_bytes().len() as u64;
                 println!("witness_len = {}", witness_len);
-                // blake2b.update(&witness_len.to_le_bytes());
-                // blake2b.update(&witness_for_digest.as_bytes());
                 hasher.input(&witness_len.to_le_bytes());
                 hasher.input(&witness_for_digest.as_bytes());
                 ((i + 1)..(i + len)).for_each(|n| {
                     let witness = tx.witnesses().get(n).unwrap();
                     let witness_len = witness.raw_data().len() as u64;
-                    // blake2b.update(&witness_len.to_le_bytes());
-                    // blake2b.update(&witness.raw_data());
                     hasher.input(&witness_len.to_le_bytes());
                     hasher.input(&witness.raw_data());
                 });
@@ -180,6 +204,7 @@ pub fn sign_tx_by_input_group_keccak256(
                 message.copy_from_slice(&hasher.result()[0..32]);
 
                 if get_current_chain_id() == CHAIN_ID_ETH {
+                    // Ethereum personal sign prefix \x19Ethereum Signed Message:\n32
                     let prefix: [u8; 28] = [
                         0x19, 0x45, 0x74, 0x68, 0x65, 0x72, 0x65, 0x75, 0x6d, 0x20, 0x53, 0x69,
                         0x67, 0x6e, 0x65, 0x64, 0x20, 0x4d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65,
@@ -197,8 +222,9 @@ pub fn sign_tx_by_input_group_keccak256(
                     }
 
                     let sig = key.sign_recoverable(&message1).expect("sign");
-                    lock[1..].copy_from_slice(&sig.serialize().to_vec());
+                    lock[start_index..end_index].copy_from_slice(&sig.serialize().to_vec());
                 } else if get_current_chain_id() == CHAIN_ID_TRON {
+                    // Tron sign prefix \x19TRON Signed Message:\n32
                     let prefix: [u8; 24] = [
                         0x19, 0x54, 0x52, 0x4f, 0x4e, 0x20, 0x53, 0x69, 0x67, 0x6e, 0x65, 0x64,
                         0x20, 0x4d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x3a, 0x0a, 0x33, 0x32,
@@ -211,8 +237,11 @@ pub fn sign_tx_by_input_group_keccak256(
                     let message1 = H256::from(message);
 
                     let sig = key.sign_recoverable(&message1).expect("sign");
-                    lock[1..].copy_from_slice(&sig.serialize().to_vec());
+                    lock[start_index..end_index].copy_from_slice(&sig.serialize().to_vec());
                 } else if get_current_chain_id() == CHAIN_ID_EOS {
+                    // EOS scatter.getArbitrarySignature() requires each word of message 
+                    // to be less than 12 characters. so insert blank char every 12 char for 
+                    // transaction message digest.
                     let mut message_hex = faster_hex::hex_string(&message).unwrap();
                     println!("message_hex {}", message_hex);
                     message_hex.insert_str(12, " ");
@@ -228,14 +257,19 @@ pub fn sign_tx_by_input_group_keccak256(
                     message.copy_from_slice(&sha256hasher.finalize().to_vec());
                     let message1 = H256::from(message);
                     let sig = key.sign_recoverable(&message1).expect("sign");
-                    lock[1..].copy_from_slice(&sig.serialize().to_vec());
+                    lock[start_index..end_index].copy_from_slice(&sig.serialize().to_vec());
                 }
 
                 println!("lock is {}", faster_hex::hex_string(&lock).unwrap());
 
+                let lock_vec = match set_chain_flag {
+                    true => lock.to_vec(),
+                    false => lock[..SIGNATURE_SIZE].to_vec()
+                };
+
                 witness
                     .as_builder()
-                    .lock(lock.to_vec().pack())
+                    .lock(lock_vec.pack())
                     .build()
                     .as_bytes()
                     .pack()
@@ -247,7 +281,7 @@ pub fn sign_tx_by_input_group_keccak256(
     for i in signed_witnesses.len()..tx.witnesses().len() {
         signed_witnesses.push(tx.witnesses().get(i).unwrap());
     }
-    // calculate message
+
     tx.as_advanced_builder()
         .set_witnesses(signed_witnesses)
         .build()
@@ -421,14 +455,21 @@ pub fn sign_tx_r1(
     sign_tx_by_input_group_r1(dummy, tx, key, 0, witnesses_len)
 }
 
+///  witness structures:
+/// |-----------|-----------|-----------|------------|-------------|-------------|
+/// |---0-31----|---32-63 --|---64-95---|---96-127---|---128-164---|---165-563---|
+/// |  pubkey.x |  pubkey.y |  sig.r    |  sig.s     |    authr    | client_data |
+/// |-----------|-----------|-----------|------------|-------------|-------------|
+/// |-----------|-----------|-----------|------------|-------------|-------------|
 /// 
-///  witness.lock structure
-///  |---------------|----------------|-------------|--------------|---------------|--------------------------|
-///  |---------------|----------------|-------------|--------------|---------------|--------------------------|
-///  | 0-31 pubkey.x | 32-63 pubkey.y | 64-95 sig.r | 96-127 sig.s | 128-164 authr | 165-565 client_data_json |
-///  |---------------|----------------|-------------|--------------|---------------|--------------------------|
-///  |---------------|----------------|-------------|--------------|---------------|--------------------------|
-/// 
+///  client_data example:
+/// {
+///   "type": "webauthn.get",
+///   "challenge": "S1TsVwxDkO4ZbNa2EJvywNWS9prOay0x_uCTIv4cHs4",
+///   "origin": "https://r1-demo.ckb.pw",
+///   "crossOrigin": false
+/// }
+///  we need to set challenge of client data json with CKB tx message digest
 pub fn sign_tx_by_input_group_r1(
     _dummy: &mut DummyDataLoader,
     tx: TransactionView,
@@ -521,7 +562,6 @@ pub fn sign_tx_by_input_group_r1(
     for i in signed_witnesses.len()..tx.witnesses().len() {
         signed_witnesses.push(tx.witnesses().get(i).unwrap());
     }
-    // calculate message
     tx.as_advanced_builder()
         .set_witnesses(signed_witnesses)
         .build()

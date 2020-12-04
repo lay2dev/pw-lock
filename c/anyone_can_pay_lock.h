@@ -1,5 +1,5 @@
 /* This file add anyone can pay capability for pw-lock, anyone can pay
- * refer to
+ * refer
  * https://github.com/nervosnetwork/ckb-production-scripts/blob/master/c/anyone_can_pay.c
  */
 

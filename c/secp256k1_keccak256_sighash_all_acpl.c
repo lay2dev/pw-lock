@@ -1,4 +1,7 @@
 /* UDT anyone-can-pay lock script
+ * refer
+ * https://github.com/nervosnetwork/ckb-production-scripts/blob/master/c/anyone_can_pay.c
+ *
  * For simplify, we call a cell with anyone-can-pay lock a wallet cell.
  *
  * Wallet cell can be unlocked without a signature, if:

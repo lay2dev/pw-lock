@@ -352,11 +352,12 @@ int calculate_typed_data(unsigned char *tx_message,
  * 1. ethereum peronsal hash
  * 2. EIP712 typed data hash
  *
- * @param message the transaction digest message with keccak256 hash algorithm
- * @param eth_address keccak256 hash of pubkey last 20 bytes, used to shield the
- * real pubkey.
+ * @param message the transaction digest message with keccak256 hash algorithm,
+ * size if 32 bytes
+ * @param eth_address last 20 bytes keccak256 hash of pubkey, used to shield the
+ * real pubkey. size is 20 bytes
  * @param lock_bytes  a signature in witness.lock field used to present
- * ownership.
+ * ownership. size is 65 bytes
  *
  */
 int verify_secp256k1_keccak_eth_sighash_all(unsigned char *message,

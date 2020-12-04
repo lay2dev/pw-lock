@@ -8,12 +8,14 @@
 #define SHA256_CTX sha256_context
 
 /**
- * EOS scatter wallet requires each world of message to be signed no more than
- * 12 characters so we need to split hex of transaction message digest hex,
- * inerset blank character every 12 character
+ * EOS scatter wallet requires each word of message to be signed no more than
+ * 12 characters, so we need to split hex transaction message digest,
+ * inerset blank character every 12 character, refer
+ * https://get-scatter.com/developers/api/requestarbitrarysignature
  *
- * @param source transaction message digest
- * @param dest message digest hex after blank added
+ * @param source transaction message digest, its size is 32 bytes.
+ * @param dest message digest hex after blank added, its length is 64 + 5 = 69
+ * char
  *
  */
 int split_hex_hash(unsigned char* source, unsigned char* dest) {
@@ -29,10 +31,11 @@ int split_hex_hash(unsigned char* source, unsigned char* dest) {
 }
 
 /**
- * @param message transaction message digest for signature verification
- * @param eth_address keccak256 hash of pubkey last 20 bytes, used to shield the
- * real pubkey.
- * @param lock_bytes signature signed by eos wallet
+ * @param message transaction message digest for signature verification, size is
+ * 32 bytes
+ * @param eth_address last 20 bytes keccak256 hash of pubkey, used to shield the
+ * real pubkey. size is 20 bytes
+ * @param lock_bytes signature signed by eos wallet, size is 65 bytes.
  *
  */
 int verify_secp256k1_keccak_eos_sighash_all(unsigned char* message,

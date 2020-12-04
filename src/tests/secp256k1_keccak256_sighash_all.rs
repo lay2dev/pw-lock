@@ -1,5 +1,6 @@
 use super::{
-    eth160, sign_tx_by_input_group_keccak256, sign_tx_keccak256, DummyDataLoader,
+    eth160, get_current_chain_id, sign_tx_by_input_group_keccak256, sign_tx_keccak256,
+    sign_tx_keccak256_with_flag, DummyDataLoader, CHAIN_ID_EOS, CHAIN_ID_ETH, CHAIN_ID_TRON,
     KECCAK256_ALL_BIN, MAX_CYCLES, SECP256K1_DATA_BIN,
 };
 use ckb_crypto::secp::{Generator, Privkey};
@@ -414,38 +415,39 @@ fn test_super_long_witness() {
     );
 }
 
-// #[test]
-// fn test_sighash_all_2_in_2_out_cycles() {
-//     const CONSUME_CYCLES: u64 = 3586833;
+#[ignore = "for different chain wallet signature, consumed cycles are different"]
+#[test]
+fn test_sighash_all_2_in_2_out_cycles() {
+    const CONSUME_CYCLES: u64 = 3619306;
 
-//     let mut data_loader = DummyDataLoader::new();
-//     let mut generator = Generator::non_crypto_safe_prng(42);
-//     let mut rng = rand::rngs::SmallRng::seed_from_u64(42);
+    let mut data_loader = DummyDataLoader::new();
+    let mut generator = Generator::non_crypto_safe_prng(42);
+    let mut rng = thread_rng();
 
-//     // key1
-//     let privkey = generator.gen_privkey();
-//     let pubkey = privkey.pubkey().expect("pubkey");
-//     let pubkey_hash = eth160(pubkey);
-//     // key2
-//     let privkey2 = generator.gen_privkey();
-//     let pubkey2 = privkey2.pubkey().expect("pubkey");
-//     let pubkey_hash2 = eth160(pubkey2);
+    // key1
+    let privkey = generator.gen_privkey();
+    let pubkey = privkey.pubkey().expect("pubkey");
+    let pubkey_hash = eth160(pubkey);
+    // key2
+    let privkey2 = generator.gen_privkey();
+    let pubkey2 = privkey2.pubkey().expect("pubkey");
+    let pubkey_hash2 = eth160(pubkey2);
 
-//     // sign with 2 keys
-//     let tx = gen_tx_with_grouped_args(
-//         &mut data_loader,
-//         vec![(pubkey_hash, 1), (pubkey_hash2, 1)],
-//         &mut rng,
-//     );
-//     let tx = sign_tx_by_input_group_keccak256(&mut data_loader, tx, &privkey, 0, 1);
-//     let tx = sign_tx_by_input_group_keccak256(&mut data_loader, tx, &privkey2, 1, 1);
+    // sign with 2 keys
+    let tx = gen_tx_with_grouped_args(
+        &mut data_loader,
+        vec![(pubkey_hash, 1), (pubkey_hash2, 1)],
+        &mut rng,
+    );
+    let tx = sign_tx_by_input_group_keccak256(&mut data_loader, tx, &privkey, 0, 1);
+    let tx = sign_tx_by_input_group_keccak256(&mut data_loader, tx, &privkey2, 1, 1);
 
-//     let resolved_tx = build_resolved_tx(&data_loader, &tx);
-//     let verify_result =
-//         TransactionScriptsVerifier::new(&resolved_tx, &data_loader).verify(MAX_CYCLES);
-//     let cycles = verify_result.expect("pass verification");
-//     assert_eq!(CONSUME_CYCLES, cycles)
-// }
+    let resolved_tx = build_resolved_tx(&data_loader, &tx);
+    let verify_result =
+        TransactionScriptsVerifier::new(&resolved_tx, &data_loader).verify(MAX_CYCLES);
+    let cycles = verify_result.expect("pass verification");
+    assert_eq!(CONSUME_CYCLES, cycles)
+}
 
 #[test]
 fn test_sighash_all_witness_append_junk_data() {
@@ -609,4 +611,37 @@ fn test_sighash_all_cover_extra_witnesses() {
         verify_result.unwrap_err(),
         ScriptError::ValidationFailure(ERROR_PUBKEY_BLAKE160_HASH),
     );
+}
+
+#[test]
+fn test_sighash_all_no_chain_flag_in_witness() {
+    // this test case set only 65-byte witness, and no chain flag
+    // for ethereume, in order to compatible with old signature, it will pass verification
+    // for eos/tron, the test case will failed
+
+    let mut data_loader = DummyDataLoader::new();
+    let privkey = Generator::random_privkey();
+    let pubkey = privkey.pubkey().expect("pubkey");
+    let pubkey_hash = eth160(pubkey);
+    let tx = gen_tx(&mut data_loader, pubkey_hash);
+    let tx = sign_tx_keccak256_with_flag(&mut data_loader, tx, &privkey, false);
+    let resolved_tx = build_resolved_tx(&data_loader, &tx);
+    let verify_result =
+        TransactionScriptsVerifier::new(&resolved_tx, &data_loader).verify(MAX_CYCLES);
+
+    let chain_id = get_current_chain_id();
+
+    match chain_id {
+        CHAIN_ID_ETH => {
+            verify_result.expect("pass verification");
+        }
+        CHAIN_ID_EOS | CHAIN_ID_TRON => {
+            assert_error_eq!(
+                verify_result.unwrap_err(),
+                ScriptError::ValidationFailure(ERROR_PUBKEY_BLAKE160_HASH),
+            );
+        }
+
+        _val => {}
+    }
 }

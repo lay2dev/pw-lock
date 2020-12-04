@@ -17,19 +17,19 @@
  *
  * witness structures:
  *|-----------|-----------|-----------|------------|-------------|-------------|
- *|---0-31----|---32-63 --|---64-95---|---96-127---|---128-164---|---165-565---|
+ *|---0-31----|---32-63 --|---64-95---|---96-127---|---128-164---|---165-563---|
  *|  pubkey.x |  pubkey.y |  sig.r    |  sig.s     |    authr    | client_data |
  *|-----------|-----------|-----------|------------|-------------|-------------|
  *|-----------|-----------|-----------|------------|-------------|-------------|
  *
- * client_data_json example:
+ * client_data example:
  *{
  *  "type": "webauthn.get",
  *  "challenge": "S1TsVwxDkO4ZbNa2EJvywNWS9prOay0x_uCTIv4cHs4",
  *  "origin": "https://r1-demo.ckb.pw",
  *  "crossOrigin": false
  *}
- * we need to set challenge of client data json with CKB tx message
+ * we need to set challenge of client data json with CKB tx message digest
  *
  */
 
@@ -104,6 +104,8 @@ int verify_challenge_in_client_data(const u8* digest_message,
   /*  ASCII code for string \"challenge\":\"  */
   u8 prefix[] = {34, 99, 104, 97, 108, 108, 101, 110, 103, 101, 34, 58, 34};
   int prefix_len = 13;
+
+  /* ASCII code for \" */
   u8 suffix[] = {34};
   int suffix_len = 1;
 
@@ -202,6 +204,20 @@ int verify_secp256r1_signature(const u8* pub_key_buffer, const u8* data,
   }
 }
 
+/**
+ * The script args part should contain first 20 bytes of sha256 hash of public
+ * key. This is usded to shield the real public key.
+ *
+ * The first witness, or the first witness of the same index as the first input
+ * cell using current lock script, should be a
+ * [WitnessArgs](https://github.com/nervosnetwork/ckb/blob/1df5f2c1cbf07e04622fb8faa5b152c1af7ae341/util/types/schemas/blockchain.mol#L106)
+ * object in molecule serialization format.
+ *
+ * The lock filed of said WitnessArgs should contain 564-byte info for signature
+ * verification, including public key, signature, authr data and client data
+ * json from webauth assertion.
+ *
+ */
 int main() {
   int ret;
   uint64_t len = 0;

@@ -147,14 +147,12 @@ fn gen_tx_with_grouped_args<R: Rng>(
 
 fn sign_tx_hash(tx: TransactionView, key: &Privkey, tx_hash: &[u8]) -> TransactionView {
     // calculate message
-    // let mut blake2b = ckb_hash::new_blake2b();
     let mut hasher = Keccak256::default();
     let mut message = [0u8; 32];
-    // blake2b.update(tx_hash);
-    // blake2b.finalize(&mut message);
     hasher.input(tx_hash);
     message.copy_from_slice(&hasher.result()[0..32]);
     let message = H256::from(message);
+
     let sig = key.sign_recoverable(&message).expect("sign");
     let witness_args = WitnessArgsBuilder::default()
         .lock(Bytes::from(sig.serialize()).pack())
@@ -203,6 +201,7 @@ fn test_keccak_all_unlock() {
     let privkey = Generator::random_privkey();
     let pubkey = privkey.pubkey().expect("pubkey");
     let pubkey_hash = eth160(pubkey);
+
     let tx = gen_tx(&mut data_loader, pubkey_hash);
     let tx = sign_tx_keccak256(&mut data_loader, tx, &privkey);
     let resolved_tx = build_resolved_tx(&data_loader, &tx);
@@ -217,6 +216,7 @@ fn test_sighash_all_with_extra_witness_unlock() {
     let privkey = Generator::random_privkey();
     let pubkey = privkey.pubkey().expect("pubkey");
     let pubkey_hash = eth160(pubkey);
+
     let tx = gen_tx(&mut data_loader, pubkey_hash);
     let extract_witness = vec![1, 2, 3, 4];
     let tx = tx
@@ -267,6 +267,7 @@ fn test_sighash_all_with_grouped_inputs_unlock() {
     let privkey = Generator::random_privkey();
     let pubkey = privkey.pubkey().expect("pubkey");
     let pubkey_hash = eth160(pubkey);
+
     let tx = gen_tx_with_grouped_args(&mut data_loader, vec![(pubkey_hash, 2)], &mut rng);
     {
         let tx = sign_tx_keccak256(&mut data_loader, tx.clone(), &privkey);
@@ -339,6 +340,7 @@ fn test_signing_with_wrong_key() {
     let wrong_privkey = Generator::random_privkey();
     let pubkey = privkey.pubkey().expect("pubkey");
     let pubkey_hash = eth160(pubkey);
+
     let tx = gen_tx(&mut data_loader, pubkey_hash);
     let tx = sign_tx_keccak256(&mut data_loader, tx, &wrong_privkey);
     let resolved_tx = build_resolved_tx(&data_loader, &tx);
@@ -356,6 +358,7 @@ fn test_signing_wrong_tx_hash() {
     let privkey = Generator::random_privkey();
     let pubkey = privkey.pubkey().expect("pubkey");
     let pubkey_hash = eth160(pubkey);
+
     let tx = gen_tx(&mut data_loader, pubkey_hash);
     let tx = {
         let mut rand_tx_hash = [0u8; 32];
@@ -378,6 +381,7 @@ fn test_super_long_witness() {
     let privkey = Generator::random_privkey();
     let pubkey = privkey.pubkey().expect("pubkey");
     let pubkey_hash = eth160(pubkey);
+
     let tx = gen_tx(&mut data_loader, pubkey_hash);
     let tx_hash = tx.hash();
 
@@ -414,38 +418,39 @@ fn test_super_long_witness() {
     );
 }
 
-// #[test]
-// fn test_sighash_all_2_in_2_out_cycles() {
-//     const CONSUME_CYCLES: u64 = 3589611;
+#[ignore = "for different chain wallet signature, consumed cycles are different"]
+#[test]
+fn test_sighash_all_2_in_2_out_cycles() {
+    const CONSUME_CYCLES: u64 = 3600353;
 
-//     let mut data_loader = DummyDataLoader::new();
-//     let mut generator = Generator::non_crypto_safe_prng(42);
-//     let mut rng = rand::rngs::SmallRng::seed_from_u64(42);
+    let mut data_loader = DummyDataLoader::new();
+    let mut generator = Generator::non_crypto_safe_prng(42);
+    let mut rng = thread_rng();
 
-//     // key1
-//     let privkey = generator.gen_privkey();
-//     let pubkey = privkey.pubkey().expect("pubkey");
-//     let pubkey_hash = eth160(pubkey);
-//     // key2
-//     let privkey2 = generator.gen_privkey();
-//     let pubkey2 = privkey2.pubkey().expect("pubkey");
-//     let pubkey_hash2 = eth160(pubkey2);
+    // key1
+    let privkey = generator.gen_privkey();
+    let pubkey = privkey.pubkey().expect("pubkey");
+    let pubkey_hash = eth160(pubkey);
+    // key2
+    let privkey2 = generator.gen_privkey();
+    let pubkey2 = privkey2.pubkey().expect("pubkey");
+    let pubkey_hash2 = eth160(pubkey2);
 
-//     // sign with 2 keys
-//     let tx = gen_tx_with_grouped_args(
-//         &mut data_loader,
-//         vec![(pubkey_hash, 1), (pubkey_hash2, 1)],
-//         &mut rng,
-//     );
-//     let tx = sign_tx_by_input_group_keccak256(&mut data_loader, tx, &privkey, 0, 1);
-//     let tx = sign_tx_by_input_group_keccak256(&mut data_loader, tx, &privkey2, 1, 1);
+    // sign with 2 keys
+    let tx = gen_tx_with_grouped_args(
+        &mut data_loader,
+        vec![(pubkey_hash, 1), (pubkey_hash2, 1)],
+        &mut rng,
+    );
+    let tx = sign_tx_by_input_group_keccak256(&mut data_loader, tx, &privkey, 0, 1);
+    let tx = sign_tx_by_input_group_keccak256(&mut data_loader, tx, &privkey2, 1, 1);
 
-//     let resolved_tx = build_resolved_tx(&data_loader, &tx);
-//     let verify_result =
-//         TransactionScriptsVerifier::new(&resolved_tx, &data_loader).verify(MAX_CYCLES);
-//     let cycles = verify_result.expect("pass verification");
-//     assert_eq!(CONSUME_CYCLES, cycles)
-// }
+    let resolved_tx = build_resolved_tx(&data_loader, &tx);
+    let verify_result =
+        TransactionScriptsVerifier::new(&resolved_tx, &data_loader).verify(MAX_CYCLES);
+    let cycles = verify_result.expect("pass verification");
+    assert_eq!(CONSUME_CYCLES, cycles)
+}
 
 #[test]
 fn test_sighash_all_witness_append_junk_data() {
