@@ -1,7 +1,7 @@
 use super::{
-    eth160, get_current_chain_id, sign_tx_by_input_group_keccak256, sign_tx_keccak256,
-    sign_tx_keccak256_with_flag, DummyDataLoader, CHAIN_ID_EOS, CHAIN_ID_ETH, CHAIN_ID_TRON,
-    KECCAK256_ALL_BIN, MAX_CYCLES, SECP256K1_DATA_BIN,
+    eth160, get_current_chain_id, pubkey_compressed, ripemd_sha, sign_tx_by_input_group_keccak256,
+    sign_tx_keccak256, sign_tx_keccak256_with_flag, DummyDataLoader, CHAIN_ID_BTC, CHAIN_ID_EOS,
+    CHAIN_ID_ETH, CHAIN_ID_TRON, KECCAK256_ALL_BIN, MAX_CYCLES, SECP256K1_DATA_BIN,
 };
 use ckb_crypto::secp::{Generator, Privkey};
 use ckb_error::assert_error_eq;
@@ -203,7 +203,12 @@ fn test_keccak_all_unlock() {
     let mut data_loader = DummyDataLoader::new();
     let privkey = Generator::random_privkey();
     let pubkey = privkey.pubkey().expect("pubkey");
-    let pubkey_hash = eth160(pubkey);
+    let pubkey_hash = if get_current_chain_id() == CHAIN_ID_BTC {
+        let pubkey = pubkey_compressed(&pubkey);
+        ripemd_sha(&pubkey)
+    } else {
+        eth160(pubkey)
+    };
     let tx = gen_tx(&mut data_loader, pubkey_hash);
     let tx = sign_tx_keccak256(&mut data_loader, tx, &privkey);
     let resolved_tx = build_resolved_tx(&data_loader, &tx);
@@ -217,7 +222,12 @@ fn test_sighash_all_with_extra_witness_unlock() {
     let mut data_loader = DummyDataLoader::new();
     let privkey = Generator::random_privkey();
     let pubkey = privkey.pubkey().expect("pubkey");
-    let pubkey_hash = eth160(pubkey);
+    let pubkey_hash = if get_current_chain_id() == CHAIN_ID_BTC {
+        let pubkey = pubkey_compressed(&pubkey);
+        ripemd_sha(&pubkey)
+    } else {
+        eth160(pubkey)
+    };
     let tx = gen_tx(&mut data_loader, pubkey_hash);
     let extract_witness = vec![1, 2, 3, 4];
     let tx = tx
@@ -267,7 +277,12 @@ fn test_sighash_all_with_grouped_inputs_unlock() {
     let mut data_loader = DummyDataLoader::new();
     let privkey = Generator::random_privkey();
     let pubkey = privkey.pubkey().expect("pubkey");
-    let pubkey_hash = eth160(pubkey);
+    let pubkey_hash = if get_current_chain_id() == CHAIN_ID_BTC {
+        let pubkey = pubkey_compressed(&pubkey);
+        ripemd_sha(&pubkey)
+    } else {
+        eth160(pubkey)
+    };
     let tx = gen_tx_with_grouped_args(&mut data_loader, vec![(pubkey_hash, 2)], &mut rng);
     {
         let tx = sign_tx_keccak256(&mut data_loader, tx.clone(), &privkey);
@@ -312,11 +327,21 @@ fn test_sighash_all_with_2_different_inputs_unlock() {
     // key1
     let privkey = Generator::random_privkey();
     let pubkey = privkey.pubkey().expect("pubkey");
-    let pubkey_hash = eth160(pubkey);
+    let pubkey_hash = if get_current_chain_id() == CHAIN_ID_BTC {
+        let pubkey = pubkey_compressed(&pubkey);
+        ripemd_sha(&pubkey)
+    } else {
+        eth160(pubkey)
+    };
     // key2
     let privkey2 = Generator::random_privkey();
     let pubkey2 = privkey2.pubkey().expect("pubkey");
-    let pubkey_hash2 = eth160(pubkey2);
+    let pubkey_hash2 = if get_current_chain_id() == CHAIN_ID_BTC {
+        let pubkey2 = pubkey_compressed(&pubkey2);
+        ripemd_sha(&pubkey2)
+    } else {
+        eth160(pubkey2)
+    };
 
     // sign with 2 keys
     let tx = gen_tx_with_grouped_args(
@@ -339,7 +364,12 @@ fn test_signing_with_wrong_key() {
     let privkey = Generator::random_privkey();
     let wrong_privkey = Generator::random_privkey();
     let pubkey = privkey.pubkey().expect("pubkey");
-    let pubkey_hash = eth160(pubkey);
+    let pubkey_hash = if get_current_chain_id() == CHAIN_ID_BTC {
+        let pubkey = pubkey_compressed(&pubkey);
+        ripemd_sha(&pubkey)
+    } else {
+        eth160(pubkey)
+    };
     let tx = gen_tx(&mut data_loader, pubkey_hash);
     let tx = sign_tx_keccak256(&mut data_loader, tx, &wrong_privkey);
     let resolved_tx = build_resolved_tx(&data_loader, &tx);
@@ -356,7 +386,12 @@ fn test_signing_wrong_tx_hash() {
     let mut data_loader = DummyDataLoader::new();
     let privkey = Generator::random_privkey();
     let pubkey = privkey.pubkey().expect("pubkey");
-    let pubkey_hash = eth160(pubkey);
+    let pubkey_hash = if get_current_chain_id() == CHAIN_ID_BTC {
+        let pubkey = pubkey_compressed(&pubkey);
+        ripemd_sha(&pubkey)
+    } else {
+        eth160(pubkey)
+    };
     let tx = gen_tx(&mut data_loader, pubkey_hash);
     let tx = {
         let mut rand_tx_hash = [0u8; 32];
@@ -378,7 +413,12 @@ fn test_super_long_witness() {
     let mut data_loader = DummyDataLoader::new();
     let privkey = Generator::random_privkey();
     let pubkey = privkey.pubkey().expect("pubkey");
-    let pubkey_hash = eth160(pubkey);
+    let pubkey_hash = if get_current_chain_id() == CHAIN_ID_BTC {
+        let pubkey = pubkey_compressed(&pubkey);
+        ripemd_sha(&pubkey)
+    } else {
+        eth160(pubkey)
+    };
     let tx = gen_tx(&mut data_loader, pubkey_hash);
     let tx_hash = tx.hash();
 
@@ -427,11 +467,21 @@ fn test_sighash_all_2_in_2_out_cycles() {
     // key1
     let privkey = generator.gen_privkey();
     let pubkey = privkey.pubkey().expect("pubkey");
-    let pubkey_hash = eth160(pubkey);
+    let pubkey_hash = if get_current_chain_id() == CHAIN_ID_BTC {
+        let pubkey = pubkey_compressed(&pubkey);
+        ripemd_sha(&pubkey)
+    } else {
+        eth160(pubkey)
+    };
     // key2
     let privkey2 = generator.gen_privkey();
     let pubkey2 = privkey2.pubkey().expect("pubkey");
-    let pubkey_hash2 = eth160(pubkey2);
+    let pubkey_hash2 = if get_current_chain_id() == CHAIN_ID_BTC {
+        let pubkey2 = pubkey_compressed(&pubkey2);
+        ripemd_sha(&pubkey2)
+    } else {
+        eth160(pubkey2)
+    };
 
     // sign with 2 keys
     let tx = gen_tx_with_grouped_args(
@@ -455,7 +505,12 @@ fn test_sighash_all_witness_append_junk_data() {
     let mut data_loader = DummyDataLoader::new();
     let privkey = Generator::random_privkey();
     let pubkey = privkey.pubkey().expect("pubkey");
-    let pubkey_hash = eth160(pubkey);
+    let pubkey_hash = if get_current_chain_id() == CHAIN_ID_BTC {
+        let pubkey = pubkey_compressed(&pubkey);
+        ripemd_sha(&pubkey)
+    } else {
+        eth160(pubkey)
+    };
 
     // sign with 2 keys
     let tx = gen_tx_with_grouped_args(&mut data_loader, vec![(pubkey_hash, 2)], &mut rng);
@@ -493,7 +548,12 @@ fn test_sighash_all_witness_args_ambiguity() {
     let mut data_loader = DummyDataLoader::new();
     let privkey = Generator::random_privkey();
     let pubkey = privkey.pubkey().expect("pubkey");
-    let pubkey_hash = eth160(pubkey);
+    let pubkey_hash = if get_current_chain_id() == CHAIN_ID_BTC {
+        let pubkey = pubkey_compressed(&pubkey);
+        ripemd_sha(&pubkey)
+    } else {
+        eth160(pubkey)
+    };
 
     let tx = gen_tx_with_grouped_args(&mut data_loader, vec![(pubkey_hash, 2)], &mut rng);
     let tx = sign_tx_by_input_group_keccak256(&mut data_loader, tx, &privkey, 0, 2);
@@ -537,7 +597,12 @@ fn test_sighash_all_witnesses_ambiguity() {
     let mut data_loader = DummyDataLoader::new();
     let privkey = Generator::random_privkey();
     let pubkey = privkey.pubkey().expect("pubkey");
-    let pubkey_hash = eth160(pubkey);
+    let pubkey_hash = if get_current_chain_id() == CHAIN_ID_BTC {
+        let pubkey = pubkey_compressed(&pubkey);
+        ripemd_sha(&pubkey)
+    } else {
+        eth160(pubkey)
+    };
 
     let tx = gen_tx_with_grouped_args(&mut data_loader, vec![(pubkey_hash, 3)], &mut rng);
     let witness = Unpack::<Vec<_>>::unpack(&tx.witnesses()).remove(0);
@@ -578,7 +643,12 @@ fn test_sighash_all_cover_extra_witnesses() {
     let mut data_loader = DummyDataLoader::new();
     let privkey = Generator::random_privkey();
     let pubkey = privkey.pubkey().expect("pubkey");
-    let pubkey_hash = eth160(pubkey);
+    let pubkey_hash = if get_current_chain_id() == CHAIN_ID_BTC {
+        let pubkey = pubkey_compressed(&pubkey);
+        ripemd_sha(&pubkey)
+    } else {
+        eth160(pubkey)
+    };
 
     let tx = gen_tx_with_grouped_args(&mut data_loader, vec![(pubkey_hash, 2)], &mut rng);
     let witness = Unpack::<Vec<_>>::unpack(&tx.witnesses()).remove(0);
@@ -622,7 +692,12 @@ fn test_sighash_all_no_chain_flag_in_witness() {
     let mut data_loader = DummyDataLoader::new();
     let privkey = Generator::random_privkey();
     let pubkey = privkey.pubkey().expect("pubkey");
-    let pubkey_hash = eth160(pubkey);
+    let pubkey_hash = if get_current_chain_id() == CHAIN_ID_BTC {
+        let pubkey = pubkey_compressed(&pubkey);
+        ripemd_sha(&pubkey)
+    } else {
+        eth160(pubkey)
+    };
     let tx = gen_tx(&mut data_loader, pubkey_hash);
     let tx = sign_tx_keccak256_with_flag(&mut data_loader, tx, &privkey, false);
     let resolved_tx = build_resolved_tx(&data_loader, &tx);

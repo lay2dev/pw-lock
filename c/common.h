@@ -3,7 +3,8 @@ common.h
 
 Defines commonly used high level functions and constants.
 */
-
+#ifndef _COMMON
+#define _COMMON
 #include "ckb_syscalls.h"
 #include "protocol.h"
 #include "utils.h"
@@ -22,7 +23,7 @@ Defines commonly used high level functions and constants.
 #define ERROR_INCORRECT_SINCE_FLAGS -23
 #define ERROR_INCORRECT_SINCE_VALUE -24
 #define ERROR_PUBKEY_BLAKE160_HASH -31
-#define ERROR_PUBKEY_RIPEMD160_HASH -32
+#define ERROR_PUBKEY_RIPEMD160_HASH -31
 
 /* anyone can pay errors */
 #define ERROR_OVERFLOW -41
@@ -132,3 +133,4 @@ int check_since(uint64_t since) {
   }
   return CKB_SUCCESS;
 }
+#endif
