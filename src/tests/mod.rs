@@ -67,6 +67,19 @@ pub fn get_current_chain_id() -> u8 {
     }
 }
 
+pub fn is_compressed() -> bool {
+    if let Ok(v) = env::var("COMPRESSED") {
+        let id= u8::from_str_radix(&v, 16).unwrap();
+        if id >0 {
+            true
+        } else {
+            false
+        }
+    } else {
+        false
+    }
+}
+
 
 #[derive(Default)]
 pub struct DummyDataLoader {
@@ -294,11 +307,26 @@ pub fn sign_tx_by_input_group_keccak256_flag(
                     lock[start_index..end_index].copy_from_slice(&sig.serialize().to_vec());
                 } else if get_current_chain_id() == CHAIN_ID_BTC {
                     let mut sha256hasher = Sha256::default();
+                    sha256hasher.update("Bitcoin Signed Message:\n");
                     sha256hasher.update(&message);
                     message.copy_from_slice(&sha256hasher.finalize().to_vec());
+
+                    let mut temp = Sha256::digest(&message).to_vec();
+                    message.copy_from_slice(&temp);
+
                     let message1 = H256::from(message);
                     let sig = key.sign_recoverable(&message1).expect("sign");
-                    lock[start_index..end_index].copy_from_slice(&sig.serialize().to_vec());
+                    let mut sig_vec = sig.serialize().to_vec();
+
+                    let mut data = [0u8;SIGNATURE_SIZE];
+                    if is_compressed() {
+                        data[0] = sig_vec[64] + 27 + 4;
+                    } else {
+                        data[0] = sig_vec[64] + 27;
+                    }
+                    data[1..].copy_from_slice(&sig_vec[..64]);
+
+                    lock[start_index..end_index].copy_from_slice(&data);
                 }
 
                 println!("lock is {}", faster_hex::hex_string(&lock).unwrap());

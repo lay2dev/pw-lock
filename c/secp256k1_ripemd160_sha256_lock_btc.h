@@ -16,6 +16,8 @@
 #define NONE_COMPRESSED_PUBKEY_SIZE 65
 /* RECOVERABLE_SIGNATURE_SIZE + NONE_COMPRESSED_PUBKEY_SIZE */
 
+const unsigned char MESSAGE_MAGIC[25] = "Bitcoin Signed Message:\n";
+
 // without pubkey in witness
 int verify_secp256k1_ripemd160_sha256_btc_sighash_all(
     unsigned char* message, unsigned char* btc_address,
@@ -27,6 +29,11 @@ int verify_secp256k1_ripemd160_sha256_btc_sighash_all(
   /* Calculate signature message */
   sha256_context sha256_ctx;
   sha256_init(&sha256_ctx);
+  sha256_update(&sha256_ctx, MESSAGE_MAGIC, 24);
+  sha256_update(&sha256_ctx, message, 32);
+  sha256_final(&sha256_ctx, message);
+
+  sha256_init(&sha256_ctx);
   sha256_update(&sha256_ctx, message, 32);
   sha256_final(&sha256_ctx, message);
 
@@ -35,9 +42,13 @@ int verify_secp256k1_ripemd160_sha256_btc_sighash_all(
   if (ret != 0) {
     return ret;
   }
+
+  int recid = (lock_bytes[0] - 27) & 3;
+  bool fComp = ((lock_bytes[0] - 27) & 4) != 0;
+
   secp256k1_ecdsa_recoverable_signature signature;
   if (secp256k1_ecdsa_recoverable_signature_parse_compact(
-          &context, &signature, lock_bytes, lock_bytes[RECID_INDEX]) == 0) {
+          &context, &signature, &lock_bytes[1], recid) == 0) {
     return ERROR_SECP_PARSE_SIGNATURE;
   }
 
@@ -47,25 +58,29 @@ int verify_secp256k1_ripemd160_sha256_btc_sighash_all(
     return ERROR_SECP_RECOVER_PUBKEY;
   }
 
-  /* try uncompressed key first */
-  /* serialize pubkey */
-  size_t pubkey_size = COMPRESSED_PUBKEY_SIZE;
-  if (secp256k1_ec_pubkey_serialize(&context, temp, &pubkey_size, &pubkey,
-                                    SECP256K1_EC_COMPRESSED) != 1) {
-    return ERROR_SECP_SERIALIZE_PUBKEY;
-  }
-
-  /* check pubkey hash */
-  sha256_init(&sha256_ctx);
-  sha256_update(&sha256_ctx, temp, pubkey_size);
-  sha256_final(&sha256_ctx, temp);
-
-  ripemd160_state ripe160_ctx;
-  ripemd160_init(&ripe160_ctx);
-  ripemd160_update(&ripe160_ctx, temp, SHA256_SIZE);
-  ripemd160_finalize(&ripe160_ctx, temp);
-  if (memcmp(btc_address, temp, RIPEMD160_SIZE) != 0) {
+  if (fComp) {
     /* try compressed pubkey */
+    /* serialize pubkey */
+    size_t pubkey_size = COMPRESSED_PUBKEY_SIZE;
+    if (secp256k1_ec_pubkey_serialize(&context, temp, &pubkey_size, &pubkey,
+                                      SECP256K1_EC_COMPRESSED) != 1) {
+      return ERROR_SECP_SERIALIZE_PUBKEY;
+    }
+
+    /* check pubkey hash */
+    sha256_init(&sha256_ctx);
+    sha256_update(&sha256_ctx, temp, pubkey_size);
+    sha256_final(&sha256_ctx, temp);
+
+    ripemd160_state ripe160_ctx;
+    ripemd160_init(&ripe160_ctx);
+    ripemd160_update(&ripe160_ctx, temp, SHA256_SIZE);
+    ripemd160_finalize(&ripe160_ctx, temp);
+    if (memcmp(btc_address, temp, RIPEMD160_SIZE) != 0) {
+      return ERROR_PUBKEY_RIPEMD160_HASH;
+    }
+  } else {
+    /* try uncompressed key first */
     /* serialize pubkey */
     size_t pubkey_size = NONE_COMPRESSED_PUBKEY_SIZE;
     if (secp256k1_ec_pubkey_serialize(&context, temp, &pubkey_size, &pubkey,
