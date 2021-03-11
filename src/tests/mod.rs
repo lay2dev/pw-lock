@@ -2,10 +2,12 @@ mod anyone_can_pay;
 mod secp256k1_keccak256_sighash_all;
 mod secp256k1_keccak256_sighash_all_acpl_compatibility;
 mod secp256r1_sha256_sighash;
+mod secp256k1_ripemd160_sha256_sighash_all;
+
 
 use bech32::{self, ToBase32};
 use ckb_crypto::secp::{Privkey, Pubkey};
-use ckb_fixed_hash::H512;
+use ckb_fixed_hash::{H160, H512};
 use ckb_script::DataLoader;
 use ckb_types::{
     bytes::Bytes,
@@ -16,11 +18,13 @@ use ckb_types::{
     prelude::*,
     H256,
 };
-use secp256k1::key;
+
 use std::env;
 
 use lazy_static::lazy_static;
 use sha3::{Digest, Keccak256};
+use secp256k1::{SecretKey, key};
+
 use std::collections::HashMap;
 
 use data_encoding::BASE64URL;
@@ -51,6 +55,12 @@ lazy_static! {
         Bytes::from(&include_bytes!("../../specs/cells/secp256k1_keccak256_sighash_all_acpl")[..]);
     pub static ref SECP256R1_SHA256_SIGHASH_BIN: Bytes =
         Bytes::from(&include_bytes!("../../specs/cells/secp256r1_sha256_sighash")[..]);
+    pub static ref RIPEMD160_SHA256_ALL_BIN: Bytes = Bytes::from(
+        &include_bytes!("../../specs/cells/secp256k1_ripemd160_sha256_sighash_all")[..]
+    );
+    pub static ref RIPEMD160_SHA256_ALL_ACPL_BIN: Bytes = Bytes::from(
+        &include_bytes!("../../specs/cells/secp256k1_ripemd160_sha256_sighash_all")[..]
+    );
 }
 
 pub fn get_current_chain_id() -> u8 {
@@ -101,6 +111,50 @@ impl DataLoader for DummyDataLoader {
     }
 }
 
+
+#[derive(Copy, Clone)]
+pub enum SigType {
+    Recoverable,
+    NonRecoverable,
+}
+
+impl SigType {
+    pub fn signature_size(self) -> usize {
+        match self {
+            SigType::Recoverable => 65,
+            SigType::NonRecoverable => 64,
+        }
+    }
+}
+
+fn ripemd160(data: &[u8]) -> H160 {
+    use ripemd160::Ripemd160;
+    let digest: [u8; 20] = Ripemd160::digest(data).into();
+    H160::from(digest)
+}
+
+fn sha256(data: &[u8]) -> H256 {
+    let digest: [u8; 32] = Sha256::digest(data).into();
+    H256::from(digest)
+}
+
+fn pubkey_uncompressed(pubkey: &Pubkey) -> Vec<u8> {
+    let mut serialized = vec![4u8; 65];
+    serialized[1..65].copy_from_slice(pubkey.as_ref());
+    serialized
+}
+
+fn pubkey_compressed(pubkey: &Pubkey) -> Vec<u8> {
+    pubkey.serialize()
+}
+
+fn ripemd_sha(serialized_pubkey: &[u8]) -> Vec<u8> {
+    ripemd160(sha256(serialized_pubkey).as_bytes())
+        .as_ref()
+        .to_owned()
+}
+
+// pub fn eth160(message: &[u8]) -> Bytes {
 pub fn eth160(pubkey1: Pubkey) -> Bytes {
     let prefix_key: [u8; 65] = {
         let mut temp = [4u8; 65];
@@ -581,4 +635,165 @@ pub fn r1_pub_key(key: &EcKeyRef<Private>) -> Bytes {
         .unwrap();
 
     Bytes::from(pubkey_bytes[1..].to_vec())
+}
+
+
+// Special signature method, inconsistent with the default lock behavior,
+// witness signature only sign transaction hash
+pub fn sign_tx_sha256(tx: TransactionView, key: &SecretKey) -> TransactionView {
+    sign_tx_sha256_by_input_group(tx, key, 0, 0, SigType::Recoverable)
+}
+pub fn sign_tx_sha256_by_input_group(
+    tx: TransactionView,
+    key: &SecretKey,
+    begin_index: usize,
+    len: usize,
+    sig_type: SigType,
+) -> TransactionView {
+    let tx_hash: H256 = tx.hash().unpack();
+    let signed_witnesses: Vec<packed::Bytes> = tx
+        .inputs()
+        .into_iter()
+        .enumerate()
+        .map(|(i, _)| {
+            // digest the first witness
+            if i == begin_index {
+                let mut hasher = Sha256::new();
+                hasher.update(&tx_hash);
+                let witness = WitnessArgs::new_unchecked(tx.witnesses().get(i).unwrap().unpack());
+                let zero_lock: Bytes = {
+                    let mut buf = Vec::new();
+                    buf.resize(sig_type.signature_size(), 0);
+                    buf.extend_from_slice(&Unpack::<Bytes>::unpack(&witness.lock()));
+                    buf.into()
+                };
+                let witness_for_digest =
+                    witness.clone().as_builder().lock(zero_lock.pack()).build();
+                let witness_len = witness_for_digest.as_bytes().len() as u64;
+                hasher.update(&witness_len.to_le_bytes());
+                hasher.update(&witness_for_digest.as_bytes());
+                ((i + 1)..(i + len)).for_each(|n| {
+                    let witness = tx.witnesses().get(n).unwrap();
+                    let witness_len = witness.raw_data().len() as u64;
+                    hasher.update(&witness_len.to_le_bytes());
+                    hasher.update(&witness.raw_data());
+                });
+                let mut message = [0u8; 32];
+                message.copy_from_slice(&hasher.finalize());
+                let sig = match sig_type {
+                    SigType::Recoverable => {
+                        let message = H256::from(message);
+                        let key = Privkey::from_slice(&key[..]);
+                        key.sign_recoverable(&message).expect("sign").serialize()
+                    }
+                    SigType::NonRecoverable => {
+                        let context = &ckb_crypto::secp::SECP256K1;
+                        let message = secp256k1::Message::from_slice(&message).unwrap();
+                        // let key = secp256k1::key::SecretKey::from_slice(key.as_bytes()).unwrap();
+                        let signature = context.sign(&message, &key);
+                        signature.serialize_compact().to_vec()
+                    }
+                };
+                assert_eq!(sig_type.signature_size(), sig.len());
+                let lock: Bytes = {
+                    let mut buf = Vec::new();
+                    buf.extend_from_slice(&sig);
+                    buf.extend_from_slice(&zero_lock[sig_type.signature_size()..]);
+                    buf.into()
+                };
+                witness
+                    .as_builder()
+                    .lock(lock.pack())
+                    .build()
+                    .as_bytes()
+                    .pack()
+            } else {
+                tx.witnesses().get(i).unwrap()
+            }
+        })
+        .collect();
+    // calculate message
+    tx.as_advanced_builder()
+        .set_witnesses(signed_witnesses)
+        .build()
+}
+
+// Special signature method, inconsistent with the default lock behavior,
+// witness signature only sign transaction hash
+pub fn sign_tx_sha256_without_pubkey(tx: TransactionView, key: &SecretKey) -> TransactionView {
+    sign_tx_sha256_by_input_group_without_pubkey(tx, key, 0, 0, SigType::Recoverable)
+}
+
+pub fn sign_tx_sha256_by_input_group_without_pubkey(
+    tx: TransactionView,
+    key: &SecretKey,
+    begin_index: usize,
+    len: usize,
+    sig_type: SigType,
+) -> TransactionView {
+    let tx_hash: H256 = tx.hash().unpack();
+    let signed_witnesses: Vec<packed::Bytes> = tx
+        .inputs()
+        .into_iter()
+        .enumerate()
+        .map(|(i, _)| {
+            // digest the first witness
+            if i == begin_index {
+                let mut hasher = sha2::Sha256::new();
+                hasher.update(&tx_hash);
+                let witness = WitnessArgs::new_unchecked(tx.witnesses().get(i).unwrap().unpack());
+                let zero_lock: Bytes = {
+                    let mut buf = Vec::new();
+                    buf.resize(sig_type.signature_size(), 0);
+                    buf.into()
+                };
+                let witness_for_digest =
+                    witness.clone().as_builder().lock(zero_lock.pack()).build();
+                let witness_len = witness_for_digest.as_bytes().len() as u64;
+                hasher.update(&witness_len.to_le_bytes());
+                hasher.update(&witness_for_digest.as_bytes());
+                ((i + 1)..(i + len)).for_each(|n| {
+                    let witness = tx.witnesses().get(n).unwrap();
+                    let witness_len = witness.raw_data().len() as u64;
+                    hasher.update(&witness_len.to_le_bytes());
+                    hasher.update(&witness.raw_data());
+                });
+                let mut message = [0u8; 32];
+                message.copy_from_slice(&hasher.finalize());
+                let sig = match sig_type {
+                    SigType::Recoverable => {
+                        let message = H256::from(message);
+                        let key = Privkey::from_slice(&key[..]);
+                        key.sign_recoverable(&message).expect("sign").serialize()
+                    }
+                    SigType::NonRecoverable => {
+                        let context = &ckb_crypto::secp::SECP256K1;
+                        let message = secp256k1::Message::from_slice(&message).unwrap();
+                        // let key = secp256k1::key::SecretKey::from_slice(key.as_bytes()).unwrap();
+                        let signature = context.sign(&message, &key);
+                        signature.serialize_compact().to_vec()
+                    }
+                };
+                assert_eq!(sig_type.signature_size(), sig.len());
+                let lock: Bytes = {
+                    let mut buf = Vec::new();
+                    buf.extend_from_slice(&sig);
+                    buf.extend_from_slice(&zero_lock[sig_type.signature_size()..]);
+                    buf.into()
+                };
+                witness
+                    .as_builder()
+                    .lock(lock.pack())
+                    .build()
+                    .as_bytes()
+                    .pack()
+            } else {
+                tx.witnesses().get(i).unwrap()
+            }
+        })
+        .collect();
+    // calculate message
+    tx.as_advanced_builder()
+        .set_witnesses(signed_witnesses)
+        .build()
 }

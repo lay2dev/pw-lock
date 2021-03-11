@@ -22,6 +22,7 @@ Defines commonly used high level functions and constants.
 #define ERROR_INCORRECT_SINCE_FLAGS -23
 #define ERROR_INCORRECT_SINCE_VALUE -24
 #define ERROR_PUBKEY_BLAKE160_HASH -31
+#define ERROR_PUBKEY_RIPEMD160_HASH -32
 
 /* anyone can pay errors */
 #define ERROR_OVERFLOW -41
