@@ -58,49 +58,26 @@ int verify_secp256k1_ripemd160_sha256_btc_sighash_all(
     return ERROR_SECP_RECOVER_PUBKEY;
   }
 
-  if (fComp) {
-    /* try compressed pubkey */
-    /* serialize pubkey */
-    size_t pubkey_size = COMPRESSED_PUBKEY_SIZE;
-    if (secp256k1_ec_pubkey_serialize(&context, temp, &pubkey_size, &pubkey,
-                                      SECP256K1_EC_COMPRESSED) != 1) {
-      return ERROR_SECP_SERIALIZE_PUBKEY;
-    }
+  /* serialize pubkey */
+  size_t pubkey_size =
+      fComp ? COMPRESSED_PUBKEY_SIZE : NONE_COMPRESSED_PUBKEY_SIZE;
+  if (secp256k1_ec_pubkey_serialize(
+          &context, temp, &pubkey_size, &pubkey,
+          fComp ? SECP256K1_EC_COMPRESSED : SECP256K1_EC_UNCOMPRESSED) != 1) {
+    return ERROR_SECP_SERIALIZE_PUBKEY;
+  }
 
-    /* check pubkey hash */
-    sha256_init(&sha256_ctx);
-    sha256_update(&sha256_ctx, temp, pubkey_size);
-    sha256_final(&sha256_ctx, temp);
+  /* check pubkey hash */
+  sha256_init(&sha256_ctx);
+  sha256_update(&sha256_ctx, temp, pubkey_size);
+  sha256_final(&sha256_ctx, temp);
 
-    ripemd160_state ripe160_ctx;
-    ripemd160_init(&ripe160_ctx);
-    ripemd160_update(&ripe160_ctx, temp, SHA256_SIZE);
-    ripemd160_finalize(&ripe160_ctx, temp);
-    if (memcmp(btc_address, temp, RIPEMD160_SIZE) != 0) {
-      return ERROR_PUBKEY_RIPEMD160_HASH;
-    }
-  } else {
-    /* try uncompressed key first */
-    /* serialize pubkey */
-    size_t pubkey_size = NONE_COMPRESSED_PUBKEY_SIZE;
-    if (secp256k1_ec_pubkey_serialize(&context, temp, &pubkey_size, &pubkey,
-                                      SECP256K1_EC_UNCOMPRESSED) != 1) {
-      return ERROR_SECP_SERIALIZE_PUBKEY;
-    }
-
-    /* check pubkey hash */
-    sha256_init(&sha256_ctx);
-    sha256_update(&sha256_ctx, temp, pubkey_size);
-    sha256_final(&sha256_ctx, temp);
-
-    ripemd160_state ripe160_ctx;
-    ripemd160_init(&ripe160_ctx);
-    ripemd160_update(&ripe160_ctx, temp, SHA256_SIZE);
-    ripemd160_finalize(&ripe160_ctx, temp);
-
-    if (memcmp(btc_address, temp, RIPEMD160_SIZE) != 0) {
-      return ERROR_PUBKEY_RIPEMD160_HASH;
-    }
+  ripemd160_state ripe160_ctx;
+  ripemd160_init(&ripe160_ctx);
+  ripemd160_update(&ripe160_ctx, temp, SHA256_SIZE);
+  ripemd160_finalize(&ripe160_ctx, temp);
+  if (memcmp(btc_address, temp, RIPEMD160_SIZE) != 0) {
+    return ERROR_PUBKEY_RIPEMD160_HASH;
   }
 
   return 0;

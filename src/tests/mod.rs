@@ -311,12 +311,12 @@ pub fn sign_tx_by_input_group_keccak256_flag(
                     sha256hasher.update(&message);
                     message.copy_from_slice(&sha256hasher.finalize().to_vec());
 
-                    let mut temp = Sha256::digest(&message).to_vec();
+                    let temp = Sha256::digest(&message).to_vec();
                     message.copy_from_slice(&temp);
 
                     let message1 = H256::from(message);
                     let sig = key.sign_recoverable(&message1).expect("sign");
-                    let mut sig_vec = sig.serialize().to_vec();
+                    let sig_vec = sig.serialize().to_vec();
 
                     let mut data = [0u8;SIGNATURE_SIZE];
                     if is_compressed() {
