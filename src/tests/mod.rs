@@ -3,9 +3,10 @@ mod secp256k1_keccak256_sighash_all;
 mod secp256k1_keccak256_sighash_all_acpl_compatibility;
 mod secp256r1_sha256_sighash;
 
+
 use bech32::{self, ToBase32};
 use ckb_crypto::secp::{Privkey, Pubkey};
-use ckb_fixed_hash::H512;
+use ckb_fixed_hash::{H160, H512};
 use ckb_script::DataLoader;
 use ckb_types::{
     bytes::Bytes,
@@ -16,11 +17,13 @@ use ckb_types::{
     prelude::*,
     H256,
 };
-use secp256k1::key;
+
 use std::env;
 
 use lazy_static::lazy_static;
 use sha3::{Digest, Keccak256};
+use secp256k1::{ key};
+
 use std::collections::HashMap;
 
 use data_encoding::BASE64URL;
@@ -41,6 +44,7 @@ pub const ENABLE_EIP712: bool = false;
 pub const CHAIN_ID_ETH: u8 = 1;
 pub const CHAIN_ID_EOS: u8 = 2;
 pub const CHAIN_ID_TRON: u8 = 3;
+pub const CHAIN_ID_BTC: u8 = 4;
 
 lazy_static! {
     pub static ref SECP256K1_DATA_BIN: Bytes =
@@ -51,6 +55,7 @@ lazy_static! {
         Bytes::from(&include_bytes!("../../specs/cells/secp256k1_keccak256_sighash_all_acpl")[..]);
     pub static ref SECP256R1_SHA256_SIGHASH_BIN: Bytes =
         Bytes::from(&include_bytes!("../../specs/cells/secp256r1_sha256_sighash")[..]);
+
 }
 
 pub fn get_current_chain_id() -> u8 {
@@ -59,6 +64,19 @@ pub fn get_current_chain_id() -> u8 {
        chain_id 
     } else {
         1
+    }
+}
+
+pub fn is_compressed() -> bool {
+    if let Ok(v) = env::var("COMPRESSED") {
+        let id= u8::from_str_radix(&v, 16).unwrap();
+        if id >0 {
+            true
+        } else {
+            false
+        }
+    } else {
+        false
     }
 }
 
@@ -101,6 +119,35 @@ impl DataLoader for DummyDataLoader {
     }
 }
 
+
+fn ripemd160(data: &[u8]) -> H160 {
+    use ripemd160::Ripemd160;
+    let digest: [u8; 20] = Ripemd160::digest(data).into();
+    H160::from(digest)
+}
+
+fn sha256(data: &[u8]) -> H256 {
+    let digest: [u8; 32] = Sha256::digest(data).into();
+    H256::from(digest)
+}
+
+fn pubkey_uncompressed(pubkey: &Pubkey) -> Vec<u8> {
+    let mut serialized = vec![4u8; 65];
+    serialized[1..65].copy_from_slice(pubkey.as_ref());
+    serialized
+}
+
+fn pubkey_compressed(pubkey: &Pubkey) -> Vec<u8> {
+    pubkey.serialize()
+}
+
+fn ripemd_sha(serialized_pubkey: &[u8]) -> Bytes {
+    Bytes::from(ripemd160(sha256(serialized_pubkey).as_bytes())
+        .as_ref()
+        .to_owned())
+}
+
+// pub fn eth160(message: &[u8]) -> Bytes {
 pub fn eth160(pubkey1: Pubkey) -> Bytes {
     let prefix_key: [u8; 65] = {
         let mut temp = [4u8; 65];
@@ -258,6 +305,28 @@ pub fn sign_tx_by_input_group_keccak256_flag(
                     let message1 = H256::from(message);
                     let sig = key.sign_recoverable(&message1).expect("sign");
                     lock[start_index..end_index].copy_from_slice(&sig.serialize().to_vec());
+                } else if get_current_chain_id() == CHAIN_ID_BTC {
+                    let mut sha256hasher = Sha256::default();
+                    sha256hasher.update("Bitcoin Signed Message:\n");
+                    sha256hasher.update(&message);
+                    message.copy_from_slice(&sha256hasher.finalize().to_vec());
+
+                    let temp = Sha256::digest(&message).to_vec();
+                    message.copy_from_slice(&temp);
+
+                    let message1 = H256::from(message);
+                    let sig = key.sign_recoverable(&message1).expect("sign");
+                    let sig_vec = sig.serialize().to_vec();
+
+                    let mut data = [0u8;SIGNATURE_SIZE];
+                    if is_compressed() {
+                        data[0] = sig_vec[64] + 27 + 4;
+                    } else {
+                        data[0] = sig_vec[64] + 27;
+                    }
+                    data[1..].copy_from_slice(&sig_vec[..64]);
+
+                    lock[start_index..end_index].copy_from_slice(&data);
                 }
 
                 println!("lock is {}", faster_hex::hex_string(&lock).unwrap());
@@ -582,3 +651,4 @@ pub fn r1_pub_key(key: &EcKeyRef<Private>) -> Bytes {
 
     Bytes::from(pubkey_bytes[1..].to_vec())
 }
+

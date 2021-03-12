@@ -29,7 +29,8 @@
         "iterator": "cpp",
         "basic-config.h": "c",
         "main_impl.h": "c",
-        "secp256k1_recovery.h": "c"
+        "secp256k1_recovery.h": "c",
+        "secp256k1_keccak256_lock_all.h": "c"
     },
-    "C_Cpp.clang_format_fallbackStyle": "WebKit"
+    "C_Cpp.clang_format_fallbackStyle": "Google"
 }
