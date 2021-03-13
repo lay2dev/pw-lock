@@ -307,7 +307,7 @@ pub fn sign_tx_by_input_group_keccak256_flag(
                     lock[start_index..end_index].copy_from_slice(&sig.serialize().to_vec());
                 } else if get_current_chain_id() == CHAIN_ID_BTC {
                     let mut sha256hasher = Sha256::default();
-                    sha256hasher.update("Bitcoin Signed Message:\n");
+                    sha256hasher.update(b"\x18Bitcoin Signed Message:\n\x20");
                     sha256hasher.update(&message);
                     message.copy_from_slice(&sha256hasher.finalize().to_vec());
 

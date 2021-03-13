@@ -16,8 +16,6 @@
 #define NONE_COMPRESSED_PUBKEY_SIZE 65
 /* RECOVERABLE_SIGNATURE_SIZE + NONE_COMPRESSED_PUBKEY_SIZE */
 
-const unsigned char MESSAGE_MAGIC[25] = "Bitcoin Signed Message:\n";
-
 // without pubkey in witness
 int verify_secp256k1_ripemd160_sha256_btc_sighash_all(
     unsigned char* message, unsigned char* btc_address,
@@ -26,10 +24,15 @@ int verify_secp256k1_ripemd160_sha256_btc_sighash_all(
   unsigned char temp[TEMP_SIZE];
   uint8_t secp_data[CKB_SECP256K1_DATA_SIZE];
 
+  u8 MESSAGE_MAGIC[26];
+  MESSAGE_MAGIC[0] = 24; //MESSAGE_MAGIC length
+  memcpy(&MESSAGE_MAGIC[1], "Bitcoin Signed Message:\n", 24);
+  MESSAGE_MAGIC[25] = 32; //message length
+
   /* Calculate signature message */
   sha256_context sha256_ctx;
   sha256_init(&sha256_ctx);
-  sha256_update(&sha256_ctx, MESSAGE_MAGIC, 24);
+  sha256_update(&sha256_ctx, MESSAGE_MAGIC, 26);
   sha256_update(&sha256_ctx, message, 32);
   sha256_final(&sha256_ctx, message);
 
