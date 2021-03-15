@@ -42,7 +42,10 @@ int verify_secp256k1_keccak_sighash_all(unsigned char* eth_address) {
                                                     lock_bytes);
   } else if (chain_id == 4) {
     return verify_secp256k1_ripemd160_sha256_btc_sighash_all(
-        message, eth_address, lock_bytes);
+        message, eth_address, lock_bytes, 0);
+  } else if (chain_id == 5) {
+    return verify_secp256k1_ripemd160_sha256_btc_sighash_all(
+        message, eth_address, lock_bytes, 1);
   } else {
     return -101;
   }

@@ -28,7 +28,7 @@ use std::collections::HashMap;
 
 use data_encoding::BASE64URL;
 use json::object;
-use openssl::bn::BigNumContext;
+use openssl::{base64, bn::BigNumContext};
 use openssl::ec::EcKeyRef;
 use openssl::ec::{EcGroup, EcKey, PointConversionForm};
 use openssl::ecdsa::EcdsaSig;
@@ -45,6 +45,7 @@ pub const CHAIN_ID_ETH: u8 = 1;
 pub const CHAIN_ID_EOS: u8 = 2;
 pub const CHAIN_ID_TRON: u8 = 3;
 pub const CHAIN_ID_BTC: u8 = 4;
+pub const CHAIN_ID_DOGE: u8 = 5;
 
 lazy_static! {
     pub static ref SECP256K1_DATA_BIN: Bytes =
@@ -76,7 +77,7 @@ pub fn is_compressed() -> bool {
             false
         }
     } else {
-        false
+        true
     }
 }
 
@@ -306,9 +307,44 @@ pub fn sign_tx_by_input_group_keccak256_flag(
                     let sig = key.sign_recoverable(&message1).expect("sign");
                     lock[start_index..end_index].copy_from_slice(&sig.serialize().to_vec());
                 } else if get_current_chain_id() == CHAIN_ID_BTC {
+                    let message_hex = faster_hex::hex_string(&message).unwrap();
+                        println!("message_hex {}, len {}", message_hex, message_hex.len());
+                        //fix message_hex
+                    if message_hex.eq("0a9b4b0ef2d85981b8b07e817cc07c5c511e054895dd0842fb155af3e658661c") {
+                        //a valid signature for compressed pubkey
+                        let sig = "H24qZithBEYsDRkui/k40CWL4OSJMejDW/hM6HFaQqJ+FeW/dB3KwGT1k+mrkOoVR/oPieRiSIUX0D04ook/0RE=";
+                        //need base64 decode
+                        let sig_vec = base64::decode_block(sig).unwrap();
+                        lock[start_index..end_index].copy_from_slice(&sig_vec);
+                    } else {
+                        let mut sha256hasher = Sha256::default();
+                        sha256hasher.update(b"\x18Bitcoin Signed Message:\n\x40");
+                        sha256hasher.update(&message_hex);
+                        message.copy_from_slice(&sha256hasher.finalize().to_vec());
+
+                        let temp = Sha256::digest(&message).to_vec();
+                        message.copy_from_slice(&temp);
+
+                        let message1 = H256::from(message);
+                        let sig = key.sign_recoverable(&message1).expect("sign");
+                        let sig_vec = sig.serialize().to_vec();
+
+                        let mut data = [0u8;SIGNATURE_SIZE];
+                        if is_compressed() {
+                            data[0] = sig_vec[64] + 27 + 4;
+                        } else {
+                            data[0] = sig_vec[64] + 27;
+                        }
+                        data[1..].copy_from_slice(&sig_vec[..64]);
+
+                        lock[start_index..end_index].copy_from_slice(&data);
+                    }
+                } else if get_current_chain_id() == CHAIN_ID_DOGE {
+                    let message_hex = faster_hex::hex_string(&message).unwrap();
+                    println!("message_hex {}, len {}", message_hex, message_hex.len());
                     let mut sha256hasher = Sha256::default();
-                    sha256hasher.update(b"\x18Bitcoin Signed Message:\n\x20");
-                    sha256hasher.update(&message);
+                    sha256hasher.update(b"\x19Dogecoin Signed Message:\n\x40");
+                    sha256hasher.update(&message_hex);
                     message.copy_from_slice(&sha256hasher.finalize().to_vec());
 
                     let temp = Sha256::digest(&message).to_vec();

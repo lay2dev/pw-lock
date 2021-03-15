@@ -16,30 +16,64 @@
 #define NONE_COMPRESSED_PUBKEY_SIZE 65
 /* RECOVERABLE_SIGNATURE_SIZE + NONE_COMPRESSED_PUBKEY_SIZE */
 
+const char BTC_MESSAGE_MAGIC[25] = "Bitcoin Signed Message:\n";
+const char DOGE_MESSAGE_MAGIC[26] = "Dogecoin Signed Message:\n";
+const char HEX_TABLE[] = {'0', '1', '2', '3', '4', '5', '6', '7',
+                          '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+
+void bin_to_hex(unsigned char* source, unsigned char* dest, size_t len) {
+  for (int i = 0; i < len; i++) {
+    dest[i * 2] = HEX_TABLE[source[i] >> 4];
+    dest[i * 2 + 1] = HEX_TABLE[source[i] & 0x0F];
+  }
+  return;
+}
+
 // without pubkey in witness
 int verify_secp256k1_ripemd160_sha256_btc_sighash_all(
     unsigned char* message, unsigned char* btc_address,
-    unsigned char* lock_bytes) {
+    unsigned char* lock_bytes, u8 is_btc) {
   int ret;
   unsigned char temp[TEMP_SIZE];
   uint8_t secp_data[CKB_SECP256K1_DATA_SIZE];
 
-  u8 MESSAGE_MAGIC[26];
-  MESSAGE_MAGIC[0] = 24; //MESSAGE_MAGIC length
-  memcpy(&MESSAGE_MAGIC[1], "Bitcoin Signed Message:\n", 24);
-  MESSAGE_MAGIC[25] = 32; //message length
+  bin_to_hex(message, temp, 32);
 
-  /* Calculate signature message */
   sha256_context sha256_ctx;
-  sha256_init(&sha256_ctx);
-  sha256_update(&sha256_ctx, MESSAGE_MAGIC, 26);
-  sha256_update(&sha256_ctx, message, 32);
-  sha256_final(&sha256_ctx, message);
+  if (is_btc == 0) {
+    u8 MESSAGE_MAGIC[26];
+    MESSAGE_MAGIC[0] = 24;  // MESSAGE_MAGIC length
+    memcpy(&MESSAGE_MAGIC[1], BTC_MESSAGE_MAGIC, 24);
+    MESSAGE_MAGIC[25] = 64;  // message length
 
-  sha256_init(&sha256_ctx);
-  sha256_update(&sha256_ctx, message, 32);
-  sha256_final(&sha256_ctx, message);
+    /* Calculate signature message */
+    sha256_init(&sha256_ctx);
+    sha256_update(&sha256_ctx, MESSAGE_MAGIC, 26);
+    sha256_update(&sha256_ctx, temp, 64);
+    sha256_final(&sha256_ctx, message);
 
+    sha256_init(&sha256_ctx);
+    sha256_update(&sha256_ctx, message, 32);
+    sha256_final(&sha256_ctx, message);
+  } else if (is_btc == 1) {
+    u8 MESSAGE_MAGIC[27];
+    MESSAGE_MAGIC[0] = 25;  // MESSAGE_MAGIC length
+    memcpy(&MESSAGE_MAGIC[1], DOGE_MESSAGE_MAGIC, 25);
+    MESSAGE_MAGIC[26] = 64;  // message length
+
+    /* Calculate signature message */
+    sha256_init(&sha256_ctx);
+    sha256_update(&sha256_ctx, MESSAGE_MAGIC, 27);
+    sha256_update(&sha256_ctx, temp, 64);
+    sha256_final(&sha256_ctx, message);
+
+    sha256_init(&sha256_ctx);
+    sha256_update(&sha256_ctx, message, 32);
+    sha256_final(&sha256_ctx, message);
+  } else {
+    return -102;
+  }
+  
   secp256k1_context context;
   ret = ckb_secp256k1_custom_verify_only_initialize(&context, secp_data);
   if (ret != 0) {

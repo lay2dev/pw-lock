@@ -30,7 +30,26 @@
         "basic-config.h": "c",
         "main_impl.h": "c",
         "secp256k1_recovery.h": "c",
-        "secp256k1_keccak256_lock_all.h": "c"
+        "secp256k1_keccak256_lock_all.h": "c",
+        "cstddef": "cpp",
+        "cstdio": "cpp",
+        "cwchar": "cpp",
+        "array": "cpp",
+        "atomic": "cpp",
+        "*.tcc": "cpp",
+        "vector": "cpp",
+        "memory_resource": "cpp",
+        "optional": "cpp",
+        "tuple": "cpp",
+        "type_traits": "cpp",
+        "random": "cpp",
+        "fstream": "cpp",
+        "initializer_list": "cpp",
+        "new": "cpp",
+        "stdexcept": "cpp",
+        "system_error": "cpp",
+        "typeinfo": "cpp",
+        "utility": "cpp"
     },
     "C_Cpp.clang_format_fallbackStyle": "Google"
 }
