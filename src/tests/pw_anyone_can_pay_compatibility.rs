@@ -1,7 +1,8 @@
 use super::{
     eth160, get_current_chain_id, is_compressed, pubkey_compressed, pubkey_uncompressed,
-    ripemd_sha, sign_tx_by_input_group_keccak256, sign_tx_keccak256, DummyDataLoader, CHAIN_ID_BTC,
-    CHAIN_ID_DOGE, KECCAK256_ALL_ACPL_BIN, MAX_CYCLES, SECP256K1_DATA_BIN,
+    ripemd_sha, sign_tx_by_input_group_keccak256, sign_tx_keccak256, sign_tx_keccak256_with_flag,
+    DummyDataLoader, CHAIN_ID_BTC, CHAIN_ID_DOGE, CHAIN_ID_EOS, CHAIN_ID_ETH, CHAIN_ID_TRON,
+    KECCAK256_ALL_ACPL_BIN, MAX_CYCLES, SECP256K1_DATA_BIN,
 };
 use ckb_crypto::secp::{Generator, Privkey};
 use ckb_error::assert_error_eq;
@@ -16,7 +17,7 @@ use ckb_types::{
     prelude::*,
     H256,
 };
-use rand::{thread_rng, Rng};
+use rand::{thread_rng, Rng, SeedableRng};
 
 use sha3::{Digest, Keccak256};
 
@@ -219,6 +220,38 @@ fn test_keccak_all_unlock() {
     let verify_result =
         TransactionScriptsVerifier::new(&resolved_tx, &data_loader).verify(MAX_CYCLES);
     verify_result.expect("pass verification");
+}
+
+#[test]
+fn test_keccak_all_unlock_btc_with_fix_sk() {
+    //only run for BTC
+    if get_current_chain_id() == CHAIN_ID_BTC {
+        let mut data_loader = DummyDataLoader::new();
+        let mut sk = vec![0u8; 32];
+        //WIF format: L5EZftvrYaSudiozVRzTqLcHLNDoVn7H5HSfM9BAN6tMJX8oTWz6
+        faster_hex::hex_decode(
+            b"ef235aacf90d9f4aadd8c92e4b2562e1d9eb97f0df9ba3b508258739cb013db2",
+            &mut sk,
+        )
+        .ok()
+        .unwrap();
+        let privkey = Privkey::from_slice(&sk);
+        let pubkey = privkey.pubkey().expect("pubkey");
+        let pubkey_hash = {
+            //only for compressed
+            let pubkey = pubkey_compressed(&pubkey);
+            ripemd_sha(&pubkey)
+        };
+
+        //fix output rng
+        let mut rng = rand_chacha::ChaChaRng::seed_from_u64(1);
+        let tx = gen_tx_with_grouped_args(&mut data_loader, vec![(pubkey_hash, 1)], &mut rng);
+        let tx = sign_tx_keccak256(&mut data_loader, tx, &privkey);
+        let resolved_tx = build_resolved_tx(&data_loader, &tx);
+        let verify_result =
+            TransactionScriptsVerifier::new(&resolved_tx, &data_loader).verify(MAX_CYCLES);
+        verify_result.expect("pass verification");
+    }
 }
 
 #[test]
@@ -755,4 +788,49 @@ fn test_sighash_all_cover_extra_witnesses() {
         verify_result.unwrap_err(),
         ScriptError::ValidationFailure(ERROR_PUBKEY_BLAKE160_HASH),
     );
+}
+
+#[test]
+fn test_sighash_all_no_chain_flag_in_witness() {
+    // this test case set only 65-byte witness, and no chain flag
+    // for ethereume, in order to compatible with old signature, it will pass verification
+    // for eos/tron, the test case will failed
+
+    let mut data_loader = DummyDataLoader::new();
+    let privkey = Generator::random_privkey();
+    let pubkey = privkey.pubkey().expect("pubkey");
+    let pubkey_hash =
+        if get_current_chain_id() == CHAIN_ID_BTC || get_current_chain_id() == CHAIN_ID_DOGE {
+            let pubkey = if is_compressed() {
+                pubkey_compressed(&pubkey)
+            } else {
+                pubkey_uncompressed(&pubkey)
+            };
+            ripemd_sha(&pubkey)
+        } else {
+            eth160(pubkey)
+        };
+    let tx = gen_tx(&mut data_loader, pubkey_hash);
+    let tx = sign_tx_keccak256_with_flag(&mut data_loader, tx, &privkey, false);
+    let resolved_tx = build_resolved_tx(&data_loader, &tx);
+    let verify_result =
+        TransactionScriptsVerifier::new(&resolved_tx, &data_loader).verify(MAX_CYCLES);
+
+    let chain_id = get_current_chain_id();
+
+    println!("chain_id: {}", chain_id);
+
+    match chain_id {
+        CHAIN_ID_ETH => {
+            verify_result.expect("pass verification");
+        }
+        CHAIN_ID_EOS | CHAIN_ID_TRON => {
+            assert_error_eq!(
+                verify_result.unwrap_err(),
+                ScriptError::ValidationFailure(ERROR_PUBKEY_BLAKE160_HASH),
+            );
+        }
+
+        _val => {}
+    }
 }

@@ -5,16 +5,19 @@
  * tronWeb API is refer to
  * https://developers.tron.network/docs/tronlink-integration#signature
  *
- *
+ */
+
+#include "pw_k1_helper.h"
+/*
  * @param message: transaction message digest, size is 32 bytes
  * @param eth_address: last 20 bytes keccak256 hash of pubkey, used to shield
  * the real pubkey. size is 20 bytes
  * @param lock_bytes: transaction signature in witness.lock, size is 65 bytes
  *
  */
-int verify_secp256k1_keccak_tron_sighash_all(unsigned char* message,
-                                             unsigned char* eth_address,
-                                             unsigned char* lock_bytes) {
+
+int validate_tron(unsigned char* message, unsigned char* eth_address,
+                  unsigned char* lock_bytes) {
   SHA3_CTX sha3_ctx;
   keccak_init(&sha3_ctx);
   /* ASCII code for tron prefix \x19TRON Signed Message:\n32, refer

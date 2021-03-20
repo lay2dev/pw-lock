@@ -16,18 +16,13 @@ PROTOCOL_URL := https://raw.githubusercontent.com/nervosnetwork/ckb/${PROTOCOL_V
 # docker pull nervos/ckb-riscv-gnu-toolchain:bionic-20190702
 BUILDER_DOCKER := nervos/ckb-riscv-gnu-toolchain@sha256:7b168b4b109a0f741078a71b7c4dddaf1d283a5244608f7851f5714fbad273ba
 
-all: specs/cells/secp256k1_keccak256_sighash_all  specs/cells/secp256k1_keccak256_sighash_all_acpl specs/cells/secp256r1_sha256_sighash
+all: specs/cells/pw_anyone_can_pay specs/cells/secp256r1_sha256_sighash
 
 all-via-docker: ${PROTOCOL_HEADER}
 	docker run --rm -v `pwd`:/code ${BUILDER_DOCKER} bash -c "cd /code && make"
 
-specs/cells/secp256k1_keccak256_sighash_all: c/secp256k1_keccak256_sighash_all.c ${PROTOCOL_HEADER} c/keccak256.h c/common.h c/utils.h build/secp256k1_data_info.h $(SECP256K1_SRC) $(SECP256R1_DEP)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $< $(SECP256R1_DEP) deps/libecc/src/external_deps/rand.c  deps/libecc/src/external_deps/print.c -o $@
-	$(OBJCOPY) --only-keep-debug $@ $(subst specs/cells,build,$@.debug)
-	$(OBJCOPY) --strip-debug --strip-all $@
-
-specs/cells/secp256k1_keccak256_sighash_all_acpl: c/secp256k1_keccak256_sighash_all_acpl.c ${PROTOCOL_HEADER} c/keccak256.h c/common.h c/utils.h build/secp256k1_data_info.h $(SECP256K1_SRC) $(SECP256R1_DEP)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $< $(SECP256R1_DEP) deps/libecc/src/external_deps/rand.c  deps/libecc/src/external_deps/print.c -o $@
+specs/cells/pw_anyone_can_pay: c/pw_anyone_can_pay.c ${PROTOCOL_HEADER} c/common.h c/utils.h build/secp256k1_data_info.h $(SECP256K1_SRC) 
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $< 
 	$(OBJCOPY) --only-keep-debug $@ $(subst specs/cells,build,$@.debug)
 	$(OBJCOPY) --strip-debug --strip-all $@
 
@@ -90,7 +85,7 @@ package-clean:
 
 clean:
 	rm -rf ${PROTOCOL_HEADER} ${PROTOCOL_SCHEMA}
-	rm -rf specs/cells/secp256k1_keccak256_sighash_all  specs/cells/secp256k1_keccak256_sighash_all_acpl specs/cells/secp256r1_sha256_sighash
+	rm -rf specs/cells/pw_anyone_can_pay specs/cells/secp256r1_sha256_sighash
 	rm -rf build/secp256k1_data_info.h build/dump_secp256k1_data
 	rm -rf specs/cells/secp256k1_data
 	rm -rf build/*.debug

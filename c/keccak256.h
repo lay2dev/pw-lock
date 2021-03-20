@@ -49,8 +49,6 @@ void keccak_final(SHA3_CTX *ctx, unsigned char *result);
 }
 #endif /* __cplusplus */
 
-#endif /* __KECCAK256_H_ */
-
 // keccak256 implementation
 
 #define BLOCK_SIZE ((1600 - 256 * 2) / 8)
@@ -356,3 +354,5 @@ void keccak_final(SHA3_CTX *ctx, unsigned char *result) {
     me64_to_le_str(result, ctx->hash, digest_length);
   }
 }
+
+#endif /* __KECCAK256_H_ */

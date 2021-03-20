@@ -17,12 +17,12 @@ const BINARIES: &[(&str, &str)] = &[
         "secp256k1_data",
         "9799bee251b975b82c45a02154ce28cec89c5853ecc14d12b7b8cccfc19e0af4",
     ),
+    // (
+    //     "secp256k1_keccak256_sighash_all",
+    //     "e35b54c9bb6355e3fe694c9900bcb34904daef128b71a7e58b514d35e1cf2f8e",
+    // ),
     (
-        "secp256k1_keccak256_sighash_all",
-        "e35b54c9bb6355e3fe694c9900bcb34904daef128b71a7e58b514d35e1cf2f8e",
-    ),
-    (
-        "secp256k1_keccak256_sighash_all_acpl",
+        "pw_anyone_can_pay",
         "853d8a15a968193351040aa602a66403d6d47670f9dbfd830f8ec4ae9586046d",
     ),
     (

@@ -1,9 +1,12 @@
 #include "ckb_syscalls.h"
 #include "common.h"
-#include "libsig.h"
+// #include "libsig.h"
+#include "pw_k1_helper.h"
 #include "ripemd160.h"
 #include "secp256k1_helper.h"
+#include "sha256.h"
 
+#define u8 unsigned char
 #define BLAKE2B_BLOCK_SIZE 32
 #define RIPEMD160_SIZE 20
 #define SHA256_SIZE 32
@@ -30,16 +33,15 @@ void bin_to_hex(unsigned char* source, unsigned char* dest, size_t len) {
 }
 
 // without pubkey in witness
-int verify_secp256k1_ripemd160_sha256_btc_sighash_all(
-    unsigned char* message, unsigned char* btc_address,
-    unsigned char* lock_bytes, u8 is_btc) {
+int validate_btcoin(unsigned char* message, unsigned char* btc_address,
+                    unsigned char* lock_bytes, u8 is_btc) {
   int ret;
   unsigned char temp[TEMP_SIZE];
   uint8_t secp_data[CKB_SECP256K1_DATA_SIZE];
 
   bin_to_hex(message, temp, 32);
 
-  sha256_context sha256_ctx;
+  SHA256_CTX sha256_ctx;
   if (is_btc == 0) {
     u8 MESSAGE_MAGIC[26];
     MESSAGE_MAGIC[0] = 24;  // MESSAGE_MAGIC length
@@ -73,7 +75,7 @@ int verify_secp256k1_ripemd160_sha256_btc_sighash_all(
   } else {
     return -102;
   }
-  
+
   secp256k1_context context;
   ret = ckb_secp256k1_custom_verify_only_initialize(&context, secp_data);
   if (ret != 0) {

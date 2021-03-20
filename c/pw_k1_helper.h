@@ -4,13 +4,16 @@
  *  2. message digest calacation and chain_id/siganture extraction
  *
  */
+#ifndef PWLOCK_HELPER_H
+#define PWLOCK_HELPER_H
+
 #include "ckb_syscalls.h"
 #include "keccak256.h"
 #include "protocol.h"
 #include "secp256k1_helper.h"
 
 #define HASH_SIZE 32
-#define LOC_ARGS_SIZE 20
+#define BLAKE160_SIZE 20
 #define PUBKEY_SIZE 65  // ETH address uncompress pub key
 #define TEMP_SIZE 32768
 #define RECID_INDEX 64
@@ -70,7 +73,7 @@ int verify_signature(unsigned char *message, unsigned char *lock_bytes,
   keccak_update(&sha3_ctx, &temp[1], pubkey_size - 1);
   keccak_final(&sha3_ctx, temp);
 
-  if (memcmp(lock_args, &temp[12], LOC_ARGS_SIZE) != 0) {
+  if (memcmp(lock_args, &temp[12], BLAKE160_SIZE) != 0) {
     return ERROR_PUBKEY_BLAKE160_HASH;
   }
 
@@ -186,3 +189,4 @@ int get_signature_from_trancation(uint64_t *chain_id, unsigned char *message,
   keccak_final(&sha3_ctx, message);
   return CKB_SUCCESS;
 }
+#endif

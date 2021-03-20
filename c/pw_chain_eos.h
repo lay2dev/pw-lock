@@ -5,7 +5,10 @@
  * https://github.com/GetScatter/scatter-js/blob/55511b68d53efc9cb1aeed69336a078b5d941aa6/packages/core/src/models/WalletInterface.js#L16
  *
  */
-#define SHA256_CTX sha256_context
+#include "pw_k1_helper.h"
+#include "sha256.h"
+
+// #define SHA256_CTX sha256_context
 
 /**
  * EOS scatter wallet requires each word of message to be signed no more than
@@ -38,9 +41,8 @@ int split_hex_hash(unsigned char* source, unsigned char* dest) {
  * @param lock_bytes signature signed by eos wallet, size is 65 bytes.
  *
  */
-int verify_secp256k1_keccak_eos_sighash_all(unsigned char* message,
-                                            unsigned char* eth_address,
-                                            unsigned char* lock_bytes) {
+int validate_eos(unsigned char* message, unsigned char* eth_address,
+                 unsigned char* lock_bytes) {
   int split_message_len = HASH_SIZE * 2 + 5;
   unsigned char splited_message[split_message_len];
   /* split message to words length <= 12 */
