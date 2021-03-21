@@ -8,6 +8,8 @@
 
 #include "pw_k1_helper.h"
 
+#define ETHEREUM_SIGNATURE_SIZE 65
+
 /**
  * Verify the transaction using secp256k1 as sig algorithm and keccak256 as hash
  * algorithm.
@@ -26,7 +28,11 @@
  *
  */
 int validate_ethereum(unsigned char *message, unsigned char *eth_address,
-                      unsigned char *lock_bytes) {
+                      unsigned char *lock_bytes, uint64_t lock_bytes_size) {
+  if (lock_bytes_size != ETHEREUM_SIGNATURE_SIZE) {
+    return ERROR_WITNESS_SIZE;
+  }
+
   int ret;
 
   SHA3_CTX sha3_ctx;

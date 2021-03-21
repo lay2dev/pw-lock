@@ -33,10 +33,10 @@
  *
  */
 
-#include "b64.h"
+#include "blake2b.h"
 #include "common.h"
-#include "libsig.h"
 #include "protocol.h"
+#include "pw_r1_helper.h"
 
 #define SHA256_CTX sha256_context
 #define HASH_SIZE 32
@@ -60,32 +60,6 @@
 #if (MAX_WITNESS_SIZE > TEMP_SIZE) || (SCRIPT_SIZE > TEMP_SIZE)
 #error "Temp buffer is not big enough!"
 #endif
-
-int pub_key_import_from_aff_buf(ec_pub_key* pub_key, const ec_params* params,
-                                const u8* pub_key_buf, u8 pub_key_buf_len,
-                                ec_sig_alg_type ec_key_alg) {
-  int ret;
-  aff_pt aff_pt;
-
-  MUST_HAVE((pub_key != NULL) && (params != NULL));
-
-  /* Import the aff point */
-  ret = aff_pt_import_from_buf(&aff_pt, pub_key_buf, pub_key_buf_len,
-                               (ec_shortw_crv_src_t) & (params->ec_curve));
-
-  if (ret < 0) {
-    return -1;
-  }
-
-  ec_shortw_aff_to_prj(&(pub_key)->y, &aff_pt);
-
-  /* Set key type and pointer to EC params */
-  pub_key->key_type = ec_key_alg;
-  pub_key->params = (const ec_params*)params;
-  pub_key->magic = PUB_KEY_MAGIC;
-
-  return 0;
-}
 
 /**
  * check the challenge of client data json is equal to tx message digest
@@ -155,53 +129,6 @@ int verify_challenge_in_client_data(const u8* digest_message,
   }
 
   return ERROR_WRONG_CHALLENGE;
-}
-
-/**
- * verify secp256 r1 signature with pubkey
- *
- * @param pub_key_buffer public key for signature verification
- * @param data
- * @param sig ES256 signature from web authn
- */
-int verify_secp256r1_signature(const u8* pub_key_buffer, const u8* data,
-                               const u8* sig) {
-  int ret;
-  u8 pub_key_buffer_len = R1_PUBKEY_SIZE;
-  u8 data_len = AUTHR_DATA_SIZE + HASH_SIZE;
-
-  u8 siglen = SIGNATURE_SIZE;
-
-  ec_params params;
-  ec_pub_key pub_key;
-  char* ec_name = "SECP256R1";
-  u8 curve_name_len = 10;
-
-  const ec_str_params* curve_params =
-      ec_get_curve_params_by_name((const u8*)ec_name, curve_name_len);
-  import_params(&params, curve_params);
-
-  if (curve_params == NULL) {
-    return 11;
-  }
-
-  ret = pub_key_import_from_aff_buf(&pub_key, &params, pub_key_buffer,
-                                    pub_key_buffer_len, 1);
-
-  if (ret < 0) {
-    return ret;
-  }
-
-  struct ec_verify_context ctx;
-  ec_verify_init(&ctx, &pub_key, sig, siglen, 1, 2);
-  ec_verify_update(&ctx, (const u8*)data, data_len);
-
-  ret = ec_verify_finalize(&ctx);
-  if (ret == 0) {
-    return ret;
-  } else {
-    return ERROR_WRONG_SIGNATURE;
-  }
 }
 
 /**
@@ -294,14 +221,14 @@ int main() {
 
   /* Prepare sign message */
   unsigned char message[HASH_SIZE];
-  SHA256_CTX sha256_ctx;
-  sha256_init(&sha256_ctx);
-  sha256_update(&sha256_ctx, tx_hash, HASH_SIZE);
+  blake2b_state blake2b_ctx;
+  blake2b_init(&blake2b_ctx, HASH_SIZE);
+  blake2b_update(&blake2b_ctx, tx_hash, HASH_SIZE);
 
   /* Clear lock field to zero, then digest the first witness */
   memset((void*)lock_bytes_seg.ptr, 0, lock_bytes_seg.size);
-  sha256_update(&sha256_ctx, (unsigned char*)&witness_len, sizeof(uint64_t));
-  sha256_update(&sha256_ctx, temp, witness_len);
+  blake2b_update(&blake2b_ctx, (unsigned char*)&witness_len, sizeof(uint64_t));
+  blake2b_update(&blake2b_ctx, temp, witness_len);
 
   /* Digest same group witnesses */
   size_t i = 1;
@@ -317,8 +244,8 @@ int main() {
     if (len > MAX_WITNESS_SIZE) {
       return ERROR_WITNESS_SIZE;
     }
-    sha256_update(&sha256_ctx, (unsigned char*)&len, sizeof(uint64_t));
-    sha256_update(&sha256_ctx, temp, len);
+    blake2b_update(&blake2b_ctx, (unsigned char*)&len, sizeof(uint64_t));
+    blake2b_update(&blake2b_ctx, temp, len);
     i += 1;
   }
   /* Digest witnesses that not covered by inputs */
@@ -335,12 +262,12 @@ int main() {
     if (len > MAX_WITNESS_SIZE) {
       return ERROR_WITNESS_SIZE;
     }
-    sha256_update(&sha256_ctx, (unsigned char*)&len, sizeof(uint64_t));
-    sha256_update(&sha256_ctx, temp, len);
+    blake2b_update(&blake2b_ctx, (unsigned char*)&len, sizeof(uint64_t));
+    blake2b_update(&blake2b_ctx, temp, len);
 
     i += 1;
   }
-  sha256_final(&sha256_ctx, message);
+  blake2b_final(&blake2b_ctx, message, HASH_SIZE);
 
   for (i = WITNESS_LOCK_SIZE - 1; i >= 0; i--) {
     if (lock_bytes[i] != 0) {

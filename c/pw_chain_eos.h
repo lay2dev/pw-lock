@@ -5,20 +5,21 @@
  * https://github.com/GetScatter/scatter-js/blob/55511b68d53efc9cb1aeed69336a078b5d941aa6/packages/core/src/models/WalletInterface.js#L16
  *
  */
+#include "libsig.h"
 #include "pw_k1_helper.h"
-#include "sha256.h"
 
-// #define SHA256_CTX sha256_context
+#define SHA256_CTX sha256_context
+#define EOS_SIGNATURE_SIZE 65
 
 /**
- * EOS scatter wallet requires each word of message to be signed no more than
- * 12 characters, so we need to split hex transaction message digest,
+ * EOS scatter wallet requires each word of message to be signed no more
+ * than 12 characters, so we need to split hex transaction message digest,
  * inerset blank character every 12 character, refer
  * https://get-scatter.com/developers/api/requestarbitrarysignature
  *
  * @param source transaction message digest, its size is 32 bytes.
- * @param dest message digest hex after blank added, its length is 64 + 5 = 69
- * char
+ * @param dest message digest hex after blank added, its length is 64 + 5 =
+ * 69 char
  *
  */
 int split_hex_hash(unsigned char* source, unsigned char* dest) {
@@ -42,7 +43,11 @@ int split_hex_hash(unsigned char* source, unsigned char* dest) {
  *
  */
 int validate_eos(unsigned char* message, unsigned char* eth_address,
-                 unsigned char* lock_bytes) {
+                 unsigned char* lock_bytes, uint64_t lock_bytes_size) {
+  if (lock_bytes_size != EOS_SIGNATURE_SIZE) {
+    return ERROR_WITNESS_SIZE;
+  }
+
   int split_message_len = HASH_SIZE * 2 + 5;
   unsigned char splited_message[split_message_len];
   /* split message to words length <= 12 */

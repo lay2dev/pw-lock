@@ -2,7 +2,7 @@ TARGET := riscv64-unknown-elf
 CC := $(TARGET)-gcc
 LD := $(TARGET)-gcc
 OBJCOPY := $(TARGET)-objcopy
-CFLAGS := -O3 -I deps/libecc/src -I deps/libecc/src/external_deps -I deps/ckb-c-std-lib/molecule -I deps/secp256k1/src -I deps/secp256k1 -I deps/ckb-c-std-lib -I c -I build -Wall -Werror -Wno-nonnull-compare -Wno-unused-function -g -DWORDSIZE=64  -DWITH_STDLIB -D__unix__
+CFLAGS := -O3 -I deps/libecc/src -I deps/libecc/src/external_deps -I deps/ckb-c-std-lib/molecule -I deps/secp256k1/src -I deps/secp256k1 -I deps/ckb-c-std-lib -I c -I build -Wall -Werror -Wno-nonnull-compare -Wno-unused-function -g -DWORDSIZE=64  -DWITH_STDLIB -D__unix__ -DHAS_ETHEREUM -DHAS_EOS -DHAS_TRON -DHAS_BITCOIN -DHAS_DOGECOIN -DHASH_WEBAUTHN
 LDFLAGS := -Wl,-static -fdata-sections -ffunction-sections -Wl,--gc-sections -DWITH_STDLIB -D__unix__ -DWORDSIZE=64
 SECP256K1_SRC := deps/secp256k1/src/ecmult_static_pre_context.h
 SECP256R1_DEP := deps/libecc/build/libsign.a
@@ -21,8 +21,8 @@ all: specs/cells/pw_anyone_can_pay specs/cells/secp256r1_sha256_sighash
 all-via-docker: ${PROTOCOL_HEADER}
 	docker run --rm -v `pwd`:/code ${BUILDER_DOCKER} bash -c "cd /code && make"
 
-specs/cells/pw_anyone_can_pay: c/pw_anyone_can_pay.c ${PROTOCOL_HEADER} c/common.h c/utils.h build/secp256k1_data_info.h $(SECP256K1_SRC) 
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $< 
+specs/cells/pw_anyone_can_pay: c/pw_anyone_can_pay.c ${PROTOCOL_HEADER} c/common.h c/utils.h build/secp256k1_data_info.h $(SECP256K1_SRC) $(SECP256R1_DEP)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $< $(SECP256R1_DEP) deps/libecc/src/external_deps/rand.c  deps/libecc/src/external_deps/print.c -o $@
 	$(OBJCOPY) --only-keep-debug $@ $(subst specs/cells,build,$@.debug)
 	$(OBJCOPY) --strip-debug --strip-all $@
 

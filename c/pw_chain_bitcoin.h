@@ -1,11 +1,12 @@
 #include "ckb_syscalls.h"
 #include "common.h"
+#include "libsig.h"
 #include "pw_k1_helper.h"
 #include "secp256k1_helper.h"
-#include "sha256.h"
 
 #define u8 unsigned char
 #define MESSAGE_HEX_LEN 64
+#define BITCOIN_SIGNATURE_SIZE 65
 
 const char BTC_MESSAGE_MAGIC[25] = "Bitcoin Signed Message:\n";
 const int8_t BTC_MAGIC_LEN = 24;
@@ -18,8 +19,12 @@ const int8_t BTC_MAGIC_LEN = 24;
  * @param lock_bytes signature signed by BTC wallet, size is 65 bytes.
  *
  */
-int validate_btcoin(unsigned char* message, unsigned char* btc_address,
-                    unsigned char* lock_bytes) {
+int validate_bitcoin(unsigned char* message, unsigned char* btc_address,
+                     unsigned char* lock_bytes, uint64_t lock_bytes_size) {
+  if (lock_bytes_size != BITCOIN_SIGNATURE_SIZE) {
+    return ERROR_WITNESS_SIZE;
+  }
+
   u8 temp[MESSAGE_HEX_LEN];
 
   bin_to_hex(message, temp, 32);

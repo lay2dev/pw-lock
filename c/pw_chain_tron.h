@@ -8,16 +8,22 @@
  */
 
 #include "pw_k1_helper.h"
-/*
+
+#define TRON_SIGNATURE_SIZE 65
+
+/**
  * @param message: transaction message digest, size is 32 bytes
  * @param eth_address: last 20 bytes keccak256 hash of pubkey, used to shield
  * the real pubkey. size is 20 bytes
  * @param lock_bytes: transaction signature in witness.lock, size is 65 bytes
  *
  */
-
 int validate_tron(unsigned char* message, unsigned char* eth_address,
-                  unsigned char* lock_bytes) {
+                  unsigned char* lock_bytes, uint64_t lock_bytes_size) {
+  if (lock_bytes_size != TRON_SIGNATURE_SIZE) {
+    return ERROR_WITNESS_SIZE;
+  }
+
   SHA3_CTX sha3_ctx;
   keccak_init(&sha3_ctx);
   /* ASCII code for tron prefix \x19TRON Signed Message:\n32, refer

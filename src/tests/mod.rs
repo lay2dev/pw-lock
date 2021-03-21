@@ -203,7 +203,8 @@ pub fn sign_tx_by_input_group_keccak256_flag(
         .enumerate()
         .map(|(i, _)| -> packed::Bytes {
             if i == begin_index {
-                let mut hasher = Keccak256::default();
+                let mut blake2b = ckb_hash::new_blake2b();
+
                 let mut message = [0u8; 32];
 
                 let lock_size = match set_chain_flag {
@@ -218,7 +219,7 @@ pub fn sign_tx_by_input_group_keccak256_flag(
 
                 let end_index = start_index + SIGNATURE_SIZE;
 
-                hasher.input(&tx_hash.raw_data());
+                blake2b.update(&tx_hash.raw_data());
                 // digest the first witness
                 let witness = WitnessArgs::new_unchecked(tx.witnesses().get(i).unwrap().unpack());
                 let zero_lock: Bytes = {
@@ -234,16 +235,17 @@ pub fn sign_tx_by_input_group_keccak256_flag(
                     witness.clone().as_builder().lock(zero_lock.pack()).build();
                 let witness_len = witness_for_digest.as_bytes().len() as u64;
                 println!("witness_len = {}", witness_len);
-                hasher.input(&witness_len.to_le_bytes());
-                hasher.input(&witness_for_digest.as_bytes());
+                blake2b.update(&witness_len.to_le_bytes());
+                blake2b.update(&witness_for_digest.as_bytes());
                 ((i + 1)..(i + len)).for_each(|n| {
                     let witness = tx.witnesses().get(n).unwrap();
                     let witness_len = witness.raw_data().len() as u64;
-                    hasher.input(&witness_len.to_le_bytes());
-                    hasher.input(&witness.raw_data());
+                    blake2b.update(&witness_len.to_le_bytes());
+                    blake2b.update(&witness.raw_data());
                 });
+                blake2b.finalize(&mut message);
+
                 // blake2b.finalize(&mut message);
-                message.copy_from_slice(&hasher.result()[0..32]);
 
                 if get_current_chain_id() == CHAIN_ID_ETH {
                     // Ethereum personal sign prefix \x19Ethereum Signed Message:\n32
@@ -252,10 +254,10 @@ pub fn sign_tx_by_input_group_keccak256_flag(
                         0x67, 0x6e, 0x65, 0x64, 0x20, 0x4d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65,
                         0x3a, 0x0a, 0x33, 0x32,
                     ];
-                    hasher = Keccak256::default();
-                    hasher.input(&prefix);
-                    hasher.input(&message);
-                    message.copy_from_slice(&hasher.result()[0..32]);
+                    let mut keccak_hasher = Keccak256::default();
+                    keccak_hasher.input(&prefix);
+                    keccak_hasher.input(&message);
+                    message.copy_from_slice(&keccak_hasher.result()[0..32]);
 
                     let message1 = H256::from(message);
 
@@ -267,10 +269,10 @@ pub fn sign_tx_by_input_group_keccak256_flag(
                         0x19, 0x54, 0x52, 0x4f, 0x4e, 0x20, 0x53, 0x69, 0x67, 0x6e, 0x65, 0x64,
                         0x20, 0x4d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x3a, 0x0a, 0x33, 0x32,
                     ];
-                    hasher = Keccak256::default();
-                    hasher.input(&prefix);
-                    hasher.input(&message);
-                    message.copy_from_slice(&hasher.result()[0..32]);
+                    let mut keccak_hasher = Keccak256::default();
+                    keccak_hasher.input(&prefix);
+                    keccak_hasher.input(&message);
+                    message.copy_from_slice(&keccak_hasher.result()[0..32]);
 
                     let message1 = H256::from(message);
 
@@ -421,9 +423,11 @@ pub fn sign_tx_by_input_group_r1(
         .enumerate()
         .map(|(i, _)| {
             if i == begin_index {
-                let mut hasher = Sha256::default();                
+                let mut blake2b = ckb_hash::new_blake2b();
 
-                hasher.update(&tx_hash.raw_data());
+                let mut message = [0u8;32];
+
+                blake2b.update(&tx_hash.raw_data());
                 // digest the first witness
                 let witness = WitnessArgs::new_unchecked(tx.witnesses().get(i).unwrap().unpack());
                 let zero_lock: Bytes = {
@@ -434,15 +438,15 @@ pub fn sign_tx_by_input_group_r1(
                 let witness_for_digest =
                     witness.clone().as_builder().lock(zero_lock.pack()).build();
                 let witness_len = witness_for_digest.as_bytes().len() as u64;
-                hasher.update(&witness_len.to_le_bytes());
-                hasher.update(&witness_for_digest.as_bytes());
+                blake2b.update(&witness_len.to_le_bytes());
+                blake2b.update(&witness_for_digest.as_bytes());
                 ((i + 1)..(i + len)).for_each(|n| {
                     let witness = tx.witnesses().get(n).unwrap();
                     let witness_len = witness.raw_data().len() as u64;
-                    hasher.update(&witness_len.to_le_bytes());
-                    hasher.update(&witness.raw_data());
+                    blake2b.update(&witness_len.to_le_bytes());
+                    blake2b.update(&witness.raw_data());
                 });
-                let message = hasher.finalize();
+                blake2b.finalize(&mut message);
 
                 let client_data = object! {
                     t: "webauthn.get",
@@ -458,7 +462,7 @@ pub fn sign_tx_by_input_group_r1(
     73, 150, 13, 229, 136, 14, 140, 104, 116, 52, 23, 15, 100, 118, 96, 91, 143, 228, 174, 185, 162, 134, 50, 199, 153, 92, 243, 186, 131, 29, 151, 99, 1, 0, 0, 0, 2,
                 ];
 
-                hasher = Sha256::default();
+                let mut hasher = Sha256::default();
                 hasher.update(&client_data_json);
                 let message = hasher.finalize();
 
