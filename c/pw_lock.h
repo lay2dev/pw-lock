@@ -2,6 +2,7 @@
  * wallet  */
 #include "common.h"
 #include "pw_chain_btcoin.h"
+#include "pw_chain_dogecoin.h"
 #include "pw_chain_eos.h"
 #include "pw_chain_ethereum.h"
 #include "pw_chain_tron.h"
@@ -37,9 +38,9 @@ int verify_pwlock_sighash_all(unsigned char* lock_args) {
   } else if (chain_id == 3) {
     return validate_tron(message, lock_args, lock_bytes);
   } else if (chain_id == 4) {
-    return validate_btcoin(message, lock_args, lock_bytes, 0);
+    return validate_btcoin(message, lock_args, lock_bytes);
   } else if (chain_id == 5) {
-    return validate_btcoin(message, lock_args, lock_bytes, 1);
+    return validate_dogecoin(message, lock_args, lock_bytes);
   } else {
     return -101;
   }
