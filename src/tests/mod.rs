@@ -42,6 +42,7 @@ pub const CHAIN_ID_EOS: u8 = 2;
 pub const CHAIN_ID_TRON: u8 = 3;
 pub const CHAIN_ID_BTC: u8 = 4;
 pub const CHAIN_ID_DOGE: u8 = 5;
+pub const CHAIN_ID_WEBAUTHN: u8 = 6;
 
 lazy_static! {
     pub static ref SECP256K1_DATA_BIN: Bytes =
@@ -49,7 +50,7 @@ lazy_static! {
     pub static ref KECCAK256_ALL_ACPL_BIN: Bytes =
         Bytes::from(&include_bytes!("../../specs/cells/pw_anyone_can_pay")[..]);
     pub static ref SECP256R1_SHA256_SIGHASH_BIN: Bytes =
-        Bytes::from(&include_bytes!("../../specs/cells/secp256r1_sha256_sighash")[..]);
+        Bytes::from(&include_bytes!("../../specs/cells/pw_anyone_can_pay")[..]);
 
 }
 
@@ -432,7 +433,7 @@ pub fn sign_tx_by_input_group_r1(
                 let witness = WitnessArgs::new_unchecked(tx.witnesses().get(i).unwrap().unpack());
                 let zero_lock: Bytes = {
                     let mut buf = Vec::new();
-                    buf.resize(R1_SIGNATURE_SIZE, 0);
+                    buf.resize(R1_SIGNATURE_SIZE + 1, 0);
                     buf.into()
                 };
                 let witness_for_digest =
@@ -488,10 +489,14 @@ pub fn sign_tx_by_input_group_r1(
                 lock[128..165].copy_from_slice(&authr_data);
                 lock[165..(165 + data_length)].copy_from_slice(&client_data_json_bytes);
 
+                let mut composed_lock = [0u8; R1_SIGNATURE_SIZE + 1];
+                composed_lock[0] = CHAIN_ID_WEBAUTHN;
+                composed_lock[1..].copy_from_slice(&lock);
+
 
                 witness
                     .as_builder()
-                    .lock(lock.to_vec().pack())
+                    .lock(composed_lock.to_vec().pack())
                     .build()
                     .as_bytes()
                     .pack()

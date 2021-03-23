@@ -2,7 +2,7 @@ TARGET := riscv64-unknown-elf
 CC := $(TARGET)-gcc
 LD := $(TARGET)-gcc
 OBJCOPY := $(TARGET)-objcopy
-CFLAGS := -O3 -I deps/libecc/src -I deps/libecc/src/external_deps -I deps/ckb-c-std-lib/molecule -I deps/secp256k1/src -I deps/secp256k1 -I deps/ckb-c-std-lib -I c -I build -Wall -Werror -Wno-nonnull-compare -Wno-unused-function -g -DWORDSIZE=64  -DWITH_STDLIB -D__unix__ -DHAS_ETHEREUM -DHAS_EOS -DHAS_TRON -DHAS_BITCOIN -DHAS_DOGECOIN -DHASH_WEBAUTHN
+CFLAGS := -O3 -I deps/libecc/src -I deps/libecc/src/external_deps -I deps/ckb-c-std-lib/molecule -I deps/secp256k1/src -I deps/secp256k1 -I deps/ckb-c-std-lib -I c -I build -Wall -Werror -Wno-nonnull-compare -Wno-unused-function -g -DWORDSIZE=64  -DWITH_STDLIB -D__unix__ -DHAS_ETHEREUM -DHAS_EOS -DHAS_TRON -DHAS_BITCOIN -DHAS_DOGECOIN -DHAS_WEBAUTHN
 LDFLAGS := -Wl,-static -fdata-sections -ffunction-sections -Wl,--gc-sections -DWITH_STDLIB -D__unix__ -DWORDSIZE=64
 SECP256K1_SRC := deps/secp256k1/src/ecmult_static_pre_context.h
 SECP256R1_DEP := deps/libecc/build/libsign.a

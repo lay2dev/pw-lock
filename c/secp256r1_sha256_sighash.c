@@ -76,11 +76,13 @@ int verify_challenge_in_client_data(const u8* digest_message,
   size_t challenge_decode_len = 33;
 
   /*  ASCII code for string \"challenge\":\"  */
-  u8 prefix[] = {34, 99, 104, 97, 108, 108, 101, 110, 103, 101, 34, 58, 34};
+  // u8 prefix[] = {34, 99, 104, 97, 108, 108, 101, 110, 103, 101, 34, 58, 34};
+  unsigned char prefix[13] = "\"challenge\":\"";
   int prefix_len = 13;
 
   /* ASCII code for \" */
-  u8 suffix[] = {34};
+  // u8 suffix[] = {34};
+  unsigned char suffix[1] = "\"";
   int suffix_len = 1;
 
   int challenge_b64_start = 0;

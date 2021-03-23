@@ -150,7 +150,7 @@ int get_signature_from_trancation(uint64_t *chain_id, unsigned char *message,
 int verify_pwlock_sighash_all(unsigned char *lock_args) {
   int ret;
   unsigned char message[HASH_SIZE];
-  unsigned char lock_bytes[SIGNATURE_SIZE];
+  unsigned char lock_bytes[TEMP_SIZE];
   uint64_t chain_id = 1;
   uint64_t lock_bytes_size = 0;
 
@@ -192,7 +192,7 @@ int verify_pwlock_sighash_all(unsigned char *lock_args) {
 
 #ifdef HAS_WEBAUTHN
   if (chain_id == 6) {
-    return validate_webauthn(message, lock_args, lock_bytes);
+    return validate_webauthn(message, lock_args, lock_bytes, lock_bytes_size);
   }
 #endif
   return -101;
