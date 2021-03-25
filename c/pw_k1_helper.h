@@ -9,12 +9,12 @@
 
 #include "ckb_syscalls.h"
 #include "keccak256.h"
-#include "libsig.h"
 #include "protocol.h"
 #include "ripemd160.h"
 #include "secp256k1_helper.h"
+#include "sha256.h"
 
-#define SHA256_CTX sha256_context
+// #define SHA256_CTX sha256_context
 #define HASH_SIZE 32
 #define BLAKE160_SIZE 20
 #define RIPEMD160_SIZE 20

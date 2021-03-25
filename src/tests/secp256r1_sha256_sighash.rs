@@ -1,6 +1,7 @@
 use super::{
-    r1_pub_key, random_r1_key, sign_tx_by_input_group_r1, sign_tx_r1, DummyDataLoader, MAX_CYCLES,
-    R1_SIGNATURE_SIZE, SECP256R1_SHA256_SIGHASH_BIN,
+    r1_pub_key, random_r1_key, sign_tx_by_input_group_r1, sign_tx_r1, DummyDataLoader,
+    CHAIN_ID_WEBAUTHN, MAX_CYCLES, PWLOCK_WEBAUTHN_LIB_BIN, R1_SIGNATURE_SIZE,
+    SECP256R1_SHA256_SIGHASH_BIN,
 };
 use ckb_error::assert_error_eq;
 use ckb_script::{ScriptError, TransactionScriptsVerifier};
@@ -22,11 +23,15 @@ use openssl::ecdsa::EcdsaSig;
 use openssl::pkey::Private;
 use sha2::{Digest as SHA2Digest, Sha256};
 
+//   const ERROR_SIG_BUFFER_SIZE: i8 = 61;
+//   const ERROR_MESSAGE_SIZE: i8 = 62;
+const ERROR_WRONG_CHALLENGE: i8 = 63;
+const ERROR_WRONG_PUBKEY: i8 = 64;
+//   const ERROR_WINTESS_LOCK_SIZE: i8 = 65;
+//   const ERROR_R1_SIGNATURE_VERFICATION: i8 = 66;
+
 const ERROR_ENCODING: i8 = -2;
 const ERROR_WITNESS_SIZE: i8 = -22;
-const ERROR_PUBKEY_BLAKE160_HASH: i8 = -31;
-
-const ERROR_WRONG_CHALLENGE: i8 = -19;
 
 fn gen_tx(dummy: &mut DummyDataLoader, lock_args: Bytes) -> TransactionView {
     let mut rng = thread_rng();
@@ -38,6 +43,29 @@ fn gen_tx_with_grouped_args<R: Rng>(
     grouped_args: Vec<(Bytes, usize)>,
     rng: &mut R,
 ) -> TransactionView {
+    // setup sighash_all dep
+    let pwlock_webatuhn_out_point = {
+        let contract_tx_hash = {
+            let mut buf = [0u8; 32];
+            rng.fill(&mut buf);
+            buf.pack()
+        };
+        OutPoint::new(contract_tx_hash.clone(), 0)
+    };
+    // dep contract code
+    let pwlock_webauthn_cell = CellOutput::new_builder()
+        .capacity(
+            Capacity::bytes(PWLOCK_WEBAUTHN_LIB_BIN.len())
+                .expect("script capacity")
+                .pack(),
+        )
+        .build();
+    let pwlock_webauthn_cell_data_hash = CellOutput::calc_data_hash(&PWLOCK_WEBAUTHN_LIB_BIN);
+    dummy.cells.insert(
+        pwlock_webatuhn_out_point.clone(),
+        (pwlock_webauthn_cell, PWLOCK_WEBAUTHN_LIB_BIN.clone()),
+    );
+
     // setup sighash_all dep
     let sighash_all_out_point = {
         let contract_tx_hash = {
@@ -79,6 +107,12 @@ fn gen_tx_with_grouped_args<R: Rng>(
                 .dep_type(DepType::Code.into())
                 .build(),
         )
+        .cell_dep(
+            CellDep::new_builder()
+                .out_point(pwlock_webatuhn_out_point)
+                .dep_type(DepType::Code.into())
+                .build(),
+        )
         .output(
             CellOutput::new_builder()
                 .capacity(dummy_capacity.pack())
@@ -88,6 +122,18 @@ fn gen_tx_with_grouped_args<R: Rng>(
         .output_data(Bytes::new().pack());
 
     for (args, inputs_size) in grouped_args {
+        let mut composed_args = [0u8; 54];
+        composed_args[..32].copy_from_slice(&pwlock_webauthn_cell_data_hash.as_bytes());
+        composed_args[32] = 0;
+        composed_args[33] = args.len() as u8;
+        composed_args[34..].copy_from_slice(&args.to_vec());
+
+        let new_args = Bytes::from(composed_args.to_vec());
+
+        println!("args: {:x?}", args.to_vec());
+        println!("code_hash : {:?}", pwlock_webauthn_cell_data_hash);
+        println!("new_args: {:x?}", new_args.to_vec());
+
         // setup dummy input unlock script
         for _ in 0..inputs_size {
             let previous_tx_hash = {
@@ -97,7 +143,7 @@ fn gen_tx_with_grouped_args<R: Rng>(
             };
             let previous_out_point = OutPoint::new(previous_tx_hash, 0);
             let script = Script::new_builder()
-                .args(args.pack())
+                .args(new_args.pack())
                 .code_hash(sighash_all_cell_data_hash.clone())
                 .hash_type(ScriptHashType::Data.into())
                 .build();
@@ -175,8 +221,12 @@ fn sign_tx_hash(tx: TransactionView, key: &EcKeyRef<Private>, tx_hash: &[u8]) ->
     lock[128..165].copy_from_slice(&authr_data);
     lock[165..(165 + data_length)].copy_from_slice(&client_data_json_bytes);
 
+    let mut composed_lock = [0u8; R1_SIGNATURE_SIZE + 1];
+    composed_lock[0] = CHAIN_ID_WEBAUTHN;
+    composed_lock[1..].copy_from_slice(&lock);
+
     let witness_args = WitnessArgsBuilder::default()
-        .lock(lock.to_vec().pack())
+        .lock(composed_lock.to_vec().pack())
         .build();
     tx.as_advanced_builder()
         .set_witnesses(vec![witness_args.as_bytes().pack()])
@@ -237,7 +287,9 @@ fn test_r1_all_unlock() {
     let resolved_tx = build_resolved_tx(&data_loader, &tx);
     let verify_result =
         TransactionScriptsVerifier::new(&resolved_tx, &data_loader).verify(MAX_CYCLES);
-    verify_result.expect("pass verification");
+    let cycles = verify_result.expect("pass verification");
+    println!("cycles = {}", cycles);
+    // assert_eq!(cycles < 20000000, true);
 }
 
 #[test]
@@ -380,7 +432,7 @@ fn test_signing_with_wrong_key() {
         TransactionScriptsVerifier::new(&resolved_tx, &data_loader).verify(MAX_CYCLES);
     assert_error_eq!(
         verify_result.unwrap_err(),
-        ScriptError::ValidationFailure(ERROR_PUBKEY_BLAKE160_HASH),
+        ScriptError::ValidationFailure(ERROR_WRONG_PUBKEY),
     );
 }
 
@@ -453,7 +505,7 @@ fn test_super_long_witness() {
 
 #[test]
 fn test_sighash_all_2_in_2_out_cycles() {
-    const CONSUME_CYCLES: u64 = 54000000;
+    const CONSUME_CYCLES: u64 = 60000000;
 
     let mut data_loader = DummyDataLoader::new();
     // let mut generator = Generator::non_crypto_safe_prng(42);
@@ -481,7 +533,8 @@ fn test_sighash_all_2_in_2_out_cycles() {
     let verify_result =
         TransactionScriptsVerifier::new(&resolved_tx, &data_loader).verify(MAX_CYCLES);
     let cycles = verify_result.expect("pass verification");
-    assert_eq!(CONSUME_CYCLES > cycles, true)
+    println!("cycles = {}", cycles);
+    assert_eq!(CONSUME_CYCLES > cycles, true);
 }
 
 #[test]

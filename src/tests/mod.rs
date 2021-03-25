@@ -42,7 +42,7 @@ pub const CHAIN_ID_EOS: u8 = 2;
 pub const CHAIN_ID_TRON: u8 = 3;
 pub const CHAIN_ID_BTC: u8 = 4;
 pub const CHAIN_ID_DOGE: u8 = 5;
-pub const CHAIN_ID_WEBAUTHN: u8 = 6;
+pub const CHAIN_ID_WEBAUTHN: u8 = 0xFF;
 
 lazy_static! {
     pub static ref SECP256K1_DATA_BIN: Bytes =
@@ -51,6 +51,8 @@ lazy_static! {
         Bytes::from(&include_bytes!("../../specs/cells/pw_anyone_can_pay")[..]);
     pub static ref SECP256R1_SHA256_SIGHASH_BIN: Bytes =
         Bytes::from(&include_bytes!("../../specs/cells/pw_anyone_can_pay")[..]);
+    pub static ref PWLOCK_WEBAUTHN_LIB_BIN: Bytes =
+        Bytes::from(&include_bytes!("../../specs/cells/pwlock_webauthn_lib")[..]);
 
 }
 
@@ -158,7 +160,10 @@ pub fn eth160(pubkey1: Pubkey) -> Bytes {
 
     let mut hasher = Keccak256::default();
     hasher.input(&message);
-    Bytes::from(hasher.result().as_slice()).slice(12, 32)
+    let mut ret = hasher.result();
+    println!("{}", faster_hex::hex_string(ret.clone().as_slice()).unwrap());
+
+    Bytes::from(ret.as_slice()).slice(12, 32)
 }
 
 pub fn sign_tx_keccak256(
@@ -264,6 +269,9 @@ pub fn sign_tx_by_input_group_keccak256_flag(
 
                     let sig = key.sign_recoverable(&message1).expect("sign");
                     lock[start_index..end_index].copy_from_slice(&sig.serialize().to_vec());
+
+                    println!("signature_eth: {:?}", lock.to_vec());
+
                 } else if get_current_chain_id() == CHAIN_ID_TRON {
                     // Tron sign prefix \x19TRON Signed Message:\n32
                     let prefix: [u8; 24] = [
@@ -279,6 +287,7 @@ pub fn sign_tx_by_input_group_keccak256_flag(
 
                     let sig = key.sign_recoverable(&message1).expect("sign");
                     lock[start_index..end_index].copy_from_slice(&sig.serialize().to_vec());
+                    println!("signature_tron: {:?}", lock.to_vec());
                 } else if get_current_chain_id() == CHAIN_ID_EOS {
                     // EOS scatter.getArbitrarySignature() requires each word of message 
                     // to be less than 12 characters. so insert blank char every 12 char for 
@@ -467,15 +476,21 @@ pub fn sign_tx_by_input_group_r1(
                 hasher.update(&client_data_json);
                 let message = hasher.finalize();
 
+                println!("r1_message_authr_data: {:?}", authr_data.to_vec());
+                println!("r1_message_client_data_hash: {:?}", message.to_vec());
+
                 hasher = Sha256::default();
                 hasher.update(&authr_data.to_vec());
                 hasher.update(&message);
                 let message = hasher.finalize();
 
+
                 let sig = EcdsaSig::sign(&message, &key).unwrap();
                 let r = sig.r().to_owned().unwrap().to_vec();
                 let s = sig.s().to_owned().unwrap().to_vec();
 
+                println!("signature_r1_r: {:?}", r);
+                println!("signature_r1_s: {:?}", s);
 
                 let mut lock = [0u8; R1_SIGNATURE_SIZE];
                 let data_length= client_data_json_bytes.len();

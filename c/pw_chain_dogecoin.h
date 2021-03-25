@@ -1,8 +1,8 @@
 #include "ckb_syscalls.h"
 #include "common.h"
-#include "libsig.h"
 #include "pw_k1_helper.h"
 #include "secp256k1_helper.h"
+#include "sha256.h"
 
 #define u8 unsigned char
 #define MESSAGE_HEX_LEN 64
@@ -20,7 +20,8 @@ const int8_t DOGE_MAGIC_LEN = 25;
  *
  */
 int validate_dogecoin(unsigned char* message, unsigned char* doge_address,
-                      unsigned char* lock_bytes, uint64_t lock_bytes_size) {
+                      uint64_t lock_args_size, unsigned char* lock_bytes,
+                      uint64_t lock_bytes_size) {
   if (lock_bytes_size != DOGECOIN_SIGNATURE_SIZE) {
     return ERROR_WITNESS_SIZE;
   }

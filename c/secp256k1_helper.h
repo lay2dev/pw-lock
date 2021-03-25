@@ -29,6 +29,21 @@ void secp256k1_default_error_callback_fn(const char* str, void* data) {
   ckb_exit(CKB_SECP256K1_HELPER_ERROR_ERROR_CALLBACK);
 }
 
+int ckb_secp256k1_custom_load_data(void* data) {
+  size_t index = SIZE_MAX;
+  int ret = ckb_look_for_dep_with_hash(ckb_secp256k1_data_hash, &index);
+  if (ret != CKB_SUCCESS) {
+    return ret;
+  }
+  /* Found a match, load data here */
+  uint64_t len = CKB_SECP256K1_DATA_SIZE;
+  ret = ckb_load_cell_data(data, &len, 0, index, CKB_SOURCE_CELL_DEP);
+  if (ret != CKB_SUCCESS || len != CKB_SECP256K1_DATA_SIZE) {
+    return CKB_SECP256K1_HELPER_ERROR_LOADING_DATA;
+  }
+  return CKB_SUCCESS;
+}
+
 /*
  * data should at least be CKB_SECP256K1_DATA_SIZE big
  * so as to hold all loaded data.

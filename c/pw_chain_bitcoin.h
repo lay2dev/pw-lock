@@ -1,8 +1,8 @@
 #include "ckb_syscalls.h"
 #include "common.h"
-#include "libsig.h"
 #include "pw_k1_helper.h"
 #include "secp256k1_helper.h"
+#include "sha256.h"
 
 #define u8 unsigned char
 #define MESSAGE_HEX_LEN 64
@@ -20,7 +20,8 @@ const int8_t BTC_MAGIC_LEN = 24;
  *
  */
 int validate_bitcoin(unsigned char* message, unsigned char* btc_address,
-                     unsigned char* lock_bytes, uint64_t lock_bytes_size) {
+                     uint64_t lock_args_size, unsigned char* lock_bytes,
+                     uint64_t lock_bytes_size) {
   if (lock_bytes_size != BITCOIN_SIGNATURE_SIZE) {
     return ERROR_WITNESS_SIZE;
   }

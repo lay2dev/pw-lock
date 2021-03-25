@@ -1,24 +1,30 @@
 #include "b64.h"
 #include "libsig.h"
 
-#define SHA256_CTX sha256_context
 #define HASH_SIZE 32
 #define LOCK_ARGS_SIZE 20
 #define R1_PUBKEY_SIZE 64  // UNCOMPRESSED PUB KEY (x, y)
 #define TEMP_SIZE 32768
-#define RECID_INDEX 64
 /* 32 KB */
 #define MAX_WITNESS_SIZE 32768
 #define SCRIPT_SIZE 32768
-#define WITNESS_LOCK_SIZE 564
+#define R1_WITNESS_LOCK_SIZE 564
 #define R1_SIGNATURE_SIZE 64
 #define AUTHR_DATA_SIZE 37
+#define MIN_CLIENT_DATA_SIZE 64
 
-#define MAX_OUTPUT_LENGTH 64
+enum ErrorCode {
+  /* 0 is the only success code. We can use 0 directly. */
 
-#define ERROR_TOO_MANY_OUTPUT_CELLS -18
-#define ERROR_WRONG_CHALLENGE -19
-#define ERROR_WRONG_SIGNATURE -31
+  ERROR_SIG_BUFFER_SIZE = 61,
+  ERROR_MESSAGE_SIZE,
+  ERROR_WRONG_CHALLENGE,
+  ERROR_WRONG_PUBKEY,
+  ERROR_WINTESS_LOCK_SIZE,
+  ERROR_R1_SIGNATURE_VERFICATION,
+  ERROR_CLIENT_DATA_SIZE,
+
+};
 
 #if (MAX_WITNESS_SIZE > TEMP_SIZE) || (SCRIPT_SIZE > TEMP_SIZE)
 #error "Temp buffer is not big enough!"
@@ -37,7 +43,7 @@ int pub_key_import_from_aff_buf(ec_pub_key* pub_key, const ec_params* params,
                                (ec_shortw_crv_src_t) & (params->ec_curve));
 
   if (ret < 0) {
-    return -1;
+    return ERROR_WRONG_PUBKEY;
   }
 
   ec_shortw_aff_to_prj(&(pub_key)->y, &aff_pt);
@@ -47,7 +53,7 @@ int pub_key_import_from_aff_buf(ec_pub_key* pub_key, const ec_params* params,
   pub_key->params = (const ec_params*)params;
   pub_key->magic = PUB_KEY_MAGIC;
 
-  return 0;
+  return CKB_SUCCESS;
 }
 
 /**
@@ -81,7 +87,7 @@ int verify_secp256r1_signature(const u8* pub_key_buffer, const u8* data,
   ret = pub_key_import_from_aff_buf(&pub_key, &params, pub_key_buffer,
                                     pub_key_buffer_len, 1);
 
-  if (ret < 0) {
+  if (ret != CKB_SUCCESS) {
     return ret;
   }
 
@@ -90,9 +96,9 @@ int verify_secp256r1_signature(const u8* pub_key_buffer, const u8* data,
   ec_verify_update(&ctx, (const u8*)data, data_len);
 
   ret = ec_verify_finalize(&ctx);
-  if (ret == 0) {
+  if (ret == CKB_SUCCESS) {
     return ret;
   } else {
-    return ERROR_WRONG_SIGNATURE;
+    return ERROR_R1_SIGNATURE_VERFICATION;
   }
 }

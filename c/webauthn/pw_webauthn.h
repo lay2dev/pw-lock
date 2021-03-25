@@ -1,12 +1,12 @@
 /* The file perform webauthn signature verification.
  *
  * https://webauthn.guide/#authentication For simplify we call a cell with this
- * lock a r1-lock cell.
+ * webauthn lib cell
  *
  * The signature build process is as follow:
- * 1. build a ckb transaction with r1-lock cell as input cells.
+ * 1. build a ckb transaction with pw-lock cell as input cells.
  * 2. calculate the tx message digest for the transaction as ckb system script
- * hash way, only except replace the blake2b hash algorithm with sha256.
+ * hash way.
  * 3. make a webauthn publicKeyCredentialRequestOptions for webauthn, take the
  * message digest of step2 as the challenge of client data.
  * 4. make a authentication request for user to get the assertion by calling
@@ -32,13 +32,8 @@
  *
  */
 
-#include "common.h"
-#include "protocol.h"
+#include "ckb_syscalls.h"
 #include "pw_r1_helper.h"
-
-#define R1_WITNESS_LOCK_SIZE 564
-#define R1_SIGNATURE_SIZE 64
-#define AUTHR_DATA_SIZE 37
 
 /**
  * check the challenge of client data json is equal to tx message digest
@@ -49,7 +44,8 @@
  *
  */
 int verify_challenge_in_client_data(const u8* digest_message,
-                                    const u8* client_data, u8 client_data_len) {
+                                    const u8* client_data,
+                                    int client_data_len) {
   u8 challenge_b64[44];
   u8 challenge_decode[33];
   size_t challenge_decode_len = 33;
@@ -88,7 +84,7 @@ int verify_challenge_in_client_data(const u8* digest_message,
   }
 
   if (challenge_b64_len <= 0) {
-    return -1;
+    return ERROR_WRONG_CHALLENGE;
   }
 
   memcpy(challenge_b64, client_data + challenge_b64_start, challenge_b64_len);
@@ -104,7 +100,7 @@ int verify_challenge_in_client_data(const u8* digest_message,
   /* compare the challenge of client data with the tx message digest */
   if (challenge_decode_len == 32 &&
       memcmp(challenge_decode, digest_message, 32) == 0) {
-    return 0;
+    return CKB_SUCCESS;
   }
 
   return ERROR_WRONG_CHALLENGE;
@@ -120,7 +116,7 @@ int verify_challenge_in_client_data(const u8* digest_message,
 int validate_webauthn(unsigned char* message, unsigned char* lock_args,
                       unsigned char* lock_bytes, uint64_t lock_bytes_size) {
   if (lock_bytes_size != R1_WITNESS_LOCK_SIZE) {
-    return ERROR_WITNESS_SIZE;
+    return ERROR_WINTESS_LOCK_SIZE;
   }
 
   unsigned char pub_key[R1_PUBKEY_SIZE];
@@ -131,7 +127,7 @@ int validate_webauthn(unsigned char* message, unsigned char* lock_args,
   sha256(pub_key, R1_PUBKEY_SIZE, pub_key_hash);
 
   if (memcmp(lock_args, pub_key_hash, LOCK_ARGS_SIZE) != 0) {
-    return ERROR_WRONG_SIGNATURE;
+    return ERROR_WRONG_PUBKEY;
   }
 
   int i = 0;
@@ -142,6 +138,10 @@ int validate_webauthn(unsigned char* message, unsigned char* lock_args,
   }
   int client_data_size =
       i - R1_PUBKEY_SIZE - R1_SIGNATURE_SIZE - AUTHR_DATA_SIZE + 1;
+
+  if (client_data_size < MIN_CLIENT_DATA_SIZE) {
+    return ERROR_CLIENT_DATA_SIZE;
+  }
 
   /* verify challenge in client_data */
   int ret = verify_challenge_in_client_data(

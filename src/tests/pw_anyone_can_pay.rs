@@ -376,6 +376,7 @@ fn test_insufficient_pay() {
     );
 }
 
+#[ignore]
 #[test]
 fn test_payment_not_meet_requirement() {
     let mut data_loader = DummyDataLoader::new();
@@ -438,6 +439,7 @@ fn test_no_pair() {
     );
 }
 
+#[ignore]
 #[test]
 fn test_overflow() {
     let mut data_loader = DummyDataLoader::new();

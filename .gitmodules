@@ -1,9 +1,0 @@
-[submodule "deps/secp256k1"]
-	path = deps/secp256k1
-	url = https://github.com/nervosnetwork/secp256k1
-[submodule "deps/ckb-c-std-lib"]
-	path = deps/ckb-c-std-lib
-	url = https://github.com/nervosnetwork/ckb-c-stdlib.git
-[submodule "deps/libecc"]
-	path = deps/libecc
-	url = https://github.com/lay2dev/libecc.git

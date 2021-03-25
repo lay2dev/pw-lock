@@ -219,7 +219,8 @@ fn test_keccak_all_unlock() {
     let resolved_tx = build_resolved_tx(&data_loader, &tx);
     let verify_result =
         TransactionScriptsVerifier::new(&resolved_tx, &data_loader).verify(MAX_CYCLES);
-    verify_result.expect("pass verification");
+    let cycle = verify_result.expect("pass verification");
+    // assert_eq!(cycle > 10000000, true);
 }
 
 #[test]

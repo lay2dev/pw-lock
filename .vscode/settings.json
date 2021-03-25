@@ -49,7 +49,10 @@
         "stdexcept": "cpp",
         "system_error": "cpp",
         "typeinfo": "cpp",
-        "utility": "cpp"
+        "utility": "cpp",
+        "pw_r1_helper.h": "c",
+        "pw_webauthn.h": "c",
+        "utils.h": "c"
     },
     "C_Cpp.clang_format_fallbackStyle": "Google"
 }

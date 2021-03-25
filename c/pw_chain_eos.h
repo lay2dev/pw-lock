@@ -5,10 +5,10 @@
  * https://github.com/GetScatter/scatter-js/blob/55511b68d53efc9cb1aeed69336a078b5d941aa6/packages/core/src/models/WalletInterface.js#L16
  *
  */
-#include "libsig.h"
 #include "pw_k1_helper.h"
+#include "sha256.h"
 
-#define SHA256_CTX sha256_context
+// #define SHA256_CTX sha256_context
 #define EOS_SIGNATURE_SIZE 65
 
 /**
@@ -24,12 +24,16 @@
  */
 int split_hex_hash(unsigned char* source, unsigned char* dest) {
   int i;
+  char hex_chars[] = "0123456789abcdef";
+
   for (i = 0; i < HASH_SIZE; i++) {
     if (i > 0 && i % 6 == 0) {
-      *dest = ' ';
-      dest++;
+      *(dest++) = ' ';
     }
-    dest += sprintf((char*)dest, "%02x", source[i]);
+    // dest += sprintf((char*)dest, "%02x", source[i]);
+
+    *(dest++) = hex_chars[source[i] / 16];
+    *(dest++) = hex_chars[source[i] % 16];
   }
   return 0;
 }
@@ -43,7 +47,8 @@ int split_hex_hash(unsigned char* source, unsigned char* dest) {
  *
  */
 int validate_eos(unsigned char* message, unsigned char* eth_address,
-                 unsigned char* lock_bytes, uint64_t lock_bytes_size) {
+                 uint64_t lock_args_size, unsigned char* lock_bytes,
+                 uint64_t lock_bytes_size) {
   if (lock_bytes_size != EOS_SIGNATURE_SIZE) {
     return ERROR_WITNESS_SIZE;
   }

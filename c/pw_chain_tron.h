@@ -19,7 +19,8 @@
  *
  */
 int validate_tron(unsigned char* message, unsigned char* eth_address,
-                  unsigned char* lock_bytes, uint64_t lock_bytes_size) {
+                  uint64_t lock_args_size, unsigned char* lock_bytes,
+                  uint64_t lock_bytes_size) {
   if (lock_bytes_size != TRON_SIGNATURE_SIZE) {
     return ERROR_WITNESS_SIZE;
   }
@@ -28,9 +29,10 @@ int validate_tron(unsigned char* message, unsigned char* eth_address,
   keccak_init(&sha3_ctx);
   /* ASCII code for tron prefix \x19TRON Signed Message:\n32, refer
    * https://github.com/tronprotocol/tips/issues/104 */
-  unsigned char tron_prefix[24] = {
-      0x19, 0x54, 0x52, 0x4f, 0x4e, 0x20, 0x53, 0x69, 0x67, 0x6e, 0x65, 0x64,
-      0x20, 0x4d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x3a, 0x0a, 0x33, 0x32};
+  unsigned char tron_prefix[24];
+  tron_prefix[0] = 0x19;
+  memcpy(tron_prefix + 1, "TRON Signed Message:\n32", 23);
+
   keccak_update(&sha3_ctx, tron_prefix, 24);
   keccak_update(&sha3_ctx, message, 32);
   keccak_final(&sha3_ctx, message);

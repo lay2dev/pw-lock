@@ -30,14 +30,6 @@
 #define MAX_WITNESS_SIZE 32768
 #define MAX_TYPE_HASH 256
 
-/* anyone can pay errors */
-#define ERROR_OVERFLOW -41
-#define ERROR_OUTPUT_AMOUNT_NOT_ENOUGH -42
-#define ERROR_TOO_MUCH_TYPE_HASH_INPUTS -43
-#define ERROR_NO_PAIR -44
-#define ERROR_DUPLICATED_INPUTS -45
-#define ERROR_DUPLICATED_OUTPUTS -46
-
 typedef struct {
   int is_ckb_only;
   unsigned char type_hash[BLAKE2B_BLOCK_SIZE];
@@ -292,73 +284,32 @@ int has_signature(int *has_sig) {
   return CKB_SUCCESS;
 }
 
-int read_args(unsigned char *pubkey_hash, uint64_t *min_ckb_amount,
-              uint128_t *min_udt_amount) {
-  int ret;
-  uint64_t len = 0;
-
-  /* Load args */
-  unsigned char script[SCRIPT_SIZE];
-  len = SCRIPT_SIZE;
-  ret = ckb_load_script(script, &len, 0);
-  if (ret != CKB_SUCCESS) {
-    return ERROR_SYSCALL;
-  }
-  if (len > SCRIPT_SIZE) {
-    return ERROR_SCRIPT_TOO_LONG;
-  }
-  mol_seg_t script_seg;
-  script_seg.ptr = (uint8_t *)script;
-  script_seg.size = len;
-
-  if (MolReader_Script_verify(&script_seg, false) != MOL_OK) {
-    return ERROR_ENCODING;
-  }
-
-  mol_seg_t args_seg = MolReader_Script_get_args(&script_seg);
-  mol_seg_t args_bytes_seg = MolReader_Bytes_raw_bytes(&args_seg);
-  if (args_bytes_seg.size < BLAKE160_SIZE ||
-      args_bytes_seg.size > BLAKE160_SIZE + 2) {
-    return ERROR_ARGUMENTS_LEN;
-  }
-  memcpy(pubkey_hash, args_bytes_seg.ptr, BLAKE160_SIZE);
-  *min_ckb_amount = 0;
-  *min_udt_amount = 0;
-  if (args_bytes_seg.size > BLAKE160_SIZE) {
-    int x = args_bytes_seg.ptr[BLAKE160_SIZE];
-    int is_overflow = quick_pow10(x, min_ckb_amount);
-    if (is_overflow) {
-      *min_ckb_amount = MAX_UINT64;
-    }
-  }
-  if (args_bytes_seg.size > BLAKE160_SIZE + 1) {
-    int x = args_bytes_seg.ptr[BLAKE160_SIZE + 1];
-    int is_overflow = uint128_quick_pow10(x, min_udt_amount);
-    if (is_overflow) {
-      *min_udt_amount = MAX_UINT128;
-    }
-  }
-  return CKB_SUCCESS;
-}
-
 int main() {
+  uint8_t code_buffer[MAX_CODE_SIZE] __attribute__((aligned(RISCV_PGSIZE)));
+  uint64_t code_buffer_size = MAX_CODE_SIZE;
+
   int ret;
   int has_sig;
-  unsigned char pubkey_hash[BLAKE160_SIZE];
-  uint64_t min_ckb_amount;
-  uint128_t min_udt_amount;
-  ret = read_args(pubkey_hash, &min_ckb_amount, &min_udt_amount);
-  if (ret != CKB_SUCCESS) {
-    return ret;
-  }
   ret = has_signature(&has_sig);
   if (ret != CKB_SUCCESS) {
     return ret;
   }
   if (has_sig) {
     /* unlock via signature */
-    return verify_pwlock_sighash_all(pubkey_hash);
+    return verify_pwlock_sighash_all(code_buffer, code_buffer_size);
   } else {
+    uint64_t min_ckb_amount = 0;
+    uint128_t min_udt_amount = 0;
+
+    /* remove the minimal transfer amount from lock.args */
+    /*
+    unsigned char pubkey_hash[BLAKE160_SIZE];
+    ret = read_args(pubkey_hash, &min_ckb_amount, &min_udt_amount);
+    if (ret != CKB_SUCCESS) {
+      return ret;
+    }
+    */
+
     /* unlock via payment */
     return check_payment_unlock(min_ckb_amount, min_udt_amount);
   }

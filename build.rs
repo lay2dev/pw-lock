@@ -25,8 +25,12 @@ const BINARIES: &[(&str, &str)] = &[
         "pw_anyone_can_pay",
         "853d8a15a968193351040aa602a66403d6d47670f9dbfd830f8ec4ae9586046d",
     ),
+    // (
+    //     "secp256r1_sha256_sighash",
+    //     "853d8a15a968193351040aa602a66403d6d47670f9dbfd830f8ec4ae9586046d",
+    // ),
     (
-        "secp256r1_sha256_sighash",
+        "pwlock_webauthn_lib",
         "853d8a15a968193351040aa602a66403d6d47670f9dbfd830f8ec4ae9586046d",
     ),
 ];
