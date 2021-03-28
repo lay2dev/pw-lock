@@ -1,0 +1,10 @@
+[submodule "deps/ckb-c-stdlib"]
+	path = deps/ckb-c-stdlib
+	url = https://github.com/xujiandong/ckb-c-stdlib.git
+	branch = fix-dlopen
+[submodule "deps/libecc"]
+	path = deps/libecc
+	url = https://github.com/lay2dev/libecc.git
+[submodule "deps/secp256k1"]
+	path = deps/secp256k1
+	url = https://github.com/nervosnetwork/secp256k1

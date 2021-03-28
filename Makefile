@@ -35,30 +35,16 @@ all: specs/cells/pw_anyone_can_pay specs/cells/pwlock_webauthn_lib
 all-via-docker: ${PROTOCOL_HEADER}
 	docker run --rm -v `pwd`:/code ${BUILDER_DOCKER} bash -c "cd /code && make"
 
+lib-via-docker: ${PROTOCOL_HEADER}
+	docker run --rm -v `pwd`:/code ${BUILDER_DOCKER} bash -c "cd /code && make specs/cells/pwlock_webauthn_lib"
+
 specs/cells/pw_anyone_can_pay: c/pw_anyone_can_pay.c ${PROTOCOL_HEADER} c/common.h c/utils.h build/secp256k1_data_info.h $(SECP256K1_SRC) 
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $< 
 	$(OBJCOPY) --only-keep-debug $@ $(subst specs/cells,build,$@.debug)
 	$(OBJCOPY) --strip-debug --strip-all $@
 
-r1-via-docker: ${PROTOCOL_HEADER}
-	docker run --rm -v `pwd`:/code ${BUILDER_DOCKER} bash -c "cd /code && make specs/cells/secp256r1_sha256_sighash"
-
-
-specs/cells/secp256r1_sha256_sighash: c/secp256r1_sha256_sighash.c  $(SECP256R1_DEP) 
-	$(CC) $(CFLAGS_R1) $(LDFLAGS) $< $(SECP256R1_DEP) deps/libecc/src/external_deps/rand.c deps/libecc/src/external_deps/print.c  -o $@  
-	$(OBJCOPY) --only-keep-debug $@ $(subst specs/cells,build,$@.debug)
-	$(OBJCOPY) --strip-debug --strip-all $@
-
-lib-via-docker: ${PROTOCOL_HEADER}
-	docker run --rm -v `pwd`:/code ${BUILDER_DOCKER} bash -c "cd /code && make build/pwlock_webauthn_lib"
-
 specs/cells/pwlock_webauthn_lib: c/webauthn/pw_webauthn_lib.c $(SECP256R1_DEP)
 	$(CC) $(CFLAGS_R1) $(LDFLAGS_R1) -D__SHARED_LIBRARY__ -fPIC -fPIE -pie -Wl,--dynamic-list c/webauthn/pw_webauthn.syms $< $(SECP256R1_DEP) deps/libecc/src/external_deps/rand.c deps/libecc/src/external_deps/print.c  -o $@ 
-	$(OBJCOPY) --only-keep-debug $@ $@.debug
-	$(OBJCOPY) --strip-debug --strip-all $@
-
-specs/cells/pwlock_sighash_all_lib: c/pwlock_sighash_all_lib.c build/secp256k1_data_info.h $(SECP256R1_DEP)
-	$(CC) $(CFLAGS_R1) $(LDFLAGS)  -fPIC -fPIE -pie -Wl,--dynamic-list c/pwlock.syms $< $(SECP256R1_DEP) deps/libecc/src/external_deps/rand.c deps/libecc/src/external_deps/print.c  -o $@ 
 	$(OBJCOPY) --only-keep-debug $@ $@.debug
 	$(OBJCOPY) --strip-debug --strip-all $@
 
