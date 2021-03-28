@@ -1,6 +1,6 @@
 mod pw_anyone_can_pay;
 mod pw_anyone_can_pay_compatibility;
-mod secp256r1_sha256_sighash;
+mod webauthn_extended_validator;
 
 use ckb_crypto::secp::{Privkey, Pubkey};
 use ckb_fixed_hash::{H160, H512};
