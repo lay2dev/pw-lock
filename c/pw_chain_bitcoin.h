@@ -16,8 +16,10 @@ const int8_t BTC_MAGIC_LEN = 24;
  * 32 bytes
  * @param btc_address last 20 bytes ripemd160(sha256) hash of pubkey, used to
  * shield the real pubkey. size is 20 bytes
- * @param lock_bytes signature signed by BTC wallet, size is 65 bytes.
- *
+ * @param lock_args_size size of script lock args
+ * @param lock_bytes  a signature in witness.lock field used to present
+ * ownership. size is 65 bytes
+ * @param lock_bytes_size size of lock byte
  */
 int validate_bitcoin(unsigned char* message, unsigned char* btc_address,
                      uint64_t lock_args_size, unsigned char* lock_bytes,

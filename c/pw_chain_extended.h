@@ -9,6 +9,7 @@
 
 #define HASH_SIZE 32
 #define MAX_CODE_SIZE (1024 * 1024)
+#define MIN_LOCK_ARGS_SIZE 34
 
 /**
  * Verify the signature from extended validator. dynamic loading validator from
@@ -21,6 +22,15 @@
  * @param lock_bytes  a signature in witness.lock field used to present
  * ownership.
  * @param lock_bytes_size size of lock bytes
+ * @param code_buffer code buffer used to dynamic load extended validator
+ * @param code_buffer_size
+ *
+ * lock_args structures:
+ *|-----------|-----------|-------------|------------|
+ *|---0-31----|---32-33 --|----33-34----|---34-n-----|
+ *|  code_hash| hash_type |identity_size|  identity  |
+ *|-----------|-----------|-------------|------------|
+ *|-----------|-----------|-------------|------------|
  *
  */
 int validate_extended(unsigned char *message, unsigned char *lock_args,
@@ -28,7 +38,7 @@ int validate_extended(unsigned char *message, unsigned char *lock_args,
                       uint64_t lock_bytes_size, uint8_t *code_buffer,
                       uint64_t code_buffer_size) {
   int ret;
-  if (lock_args_size < 34) {
+  if (lock_args_size < MIN_LOCK_ARGS_SIZE) {
     return ERROR_ARGUMENTS_LEN;
   }
 
@@ -46,6 +56,11 @@ int validate_extended(unsigned char *message, unsigned char *lock_args,
   memcpy(&hash_type, lock_args + HASH_SIZE, 1);
   memcpy(&identify_size, lock_args + HASH_SIZE + 1, 1);
   identity = lock_args + HASH_SIZE + 2;
+
+  /* check lock args size */
+  if (lock_args_size != MIN_LOCK_ARGS_SIZE + identify_size) {
+    return ERROR_ARGUMENTS_LEN;
+  }
 
   /* dynamice load extended validator */
   ret = ckb_initialize_swappable_signature(extended_code_hash, hash_type,

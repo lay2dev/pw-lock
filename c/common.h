@@ -38,6 +38,8 @@ Defines commonly used high level functions and constants.
 #define SINCE_VALUE_MASK 0x00ffffffffffffff
 #define SINCE_EPOCH_FRACTION_FLAG 0b00100000
 
+#define ONE_BATCH_SIZE 32768
+
 /* calculate inputs length */
 int calculate_inputs_len() {
   uint64_t len = 0;
@@ -73,6 +75,30 @@ int calculate_inputs_len() {
   }
   /* now lo is last input index and hi is length of inputs */
   return hi;
+}
+
+int load_and_hash_witness(blake2b_state *ctx, size_t index, size_t source) {
+  uint8_t temp[ONE_BATCH_SIZE];
+  uint64_t len = ONE_BATCH_SIZE;
+  int ret = ckb_load_witness(temp, &len, 0, index, source);
+  if (ret != CKB_SUCCESS) {
+    return ret;
+  }
+  blake2b_update(ctx, (char *)&len, sizeof(uint64_t));
+  uint64_t offset = (len > ONE_BATCH_SIZE) ? ONE_BATCH_SIZE : len;
+  blake2b_update(ctx, temp, offset);
+  while (offset < len) {
+    uint64_t current_len = ONE_BATCH_SIZE;
+    ret = ckb_load_witness(temp, &current_len, offset, index, source);
+    if (ret != CKB_SUCCESS) {
+      return ret;
+    }
+    uint64_t current_read =
+        (current_len > ONE_BATCH_SIZE) ? ONE_BATCH_SIZE : current_len;
+    blake2b_update(ctx, temp, current_read);
+    offset += current_read;
+  }
+  return CKB_SUCCESS;
 }
 
 /* Extract lock from WitnessArgs */

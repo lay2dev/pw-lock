@@ -33,13 +33,12 @@
 int get_signature_from_trancation(uint64_t *chain_id, unsigned char *message,
                                   unsigned char *lock_bytes,
                                   uint64_t *lock_bytes_size) {
-  int ret;
-  uint64_t len = 0;
   unsigned char temp[TEMP_SIZE];
+  uint64_t len = 0;
 
   /* Load witness of first input */
   uint64_t witness_len = MAX_WITNESS_SIZE;
-  ret = ckb_load_witness(temp, &witness_len, 0, 0, CKB_SOURCE_GROUP_INPUT);
+  int ret = ckb_load_witness(temp, &witness_len, 0, 0, CKB_SOURCE_GROUP_INPUT);
   if (ret != CKB_SUCCESS) {
     return ERROR_SYSCALL;
   }
@@ -91,41 +90,29 @@ int get_signature_from_trancation(uint64_t *chain_id, unsigned char *message,
   blake2b_update(&blake2b_ctx, (unsigned char *)&witness_len, sizeof(uint64_t));
   blake2b_update(&blake2b_ctx, temp, witness_len);
 
-  /* Digest same group witnesses */
+  // Digest same group witnesses
   size_t i = 1;
   while (1) {
-    len = MAX_WITNESS_SIZE;
-    ret = ckb_load_witness(temp, &len, 0, i, CKB_SOURCE_GROUP_INPUT);
+    ret = load_and_hash_witness(&blake2b_ctx, i, CKB_SOURCE_GROUP_INPUT);
     if (ret == CKB_INDEX_OUT_OF_BOUND) {
       break;
     }
     if (ret != CKB_SUCCESS) {
       return ERROR_SYSCALL;
     }
-    if (len > MAX_WITNESS_SIZE) {
-      return ERROR_WITNESS_SIZE;
-    }
-    blake2b_update(&blake2b_ctx, (unsigned char *)&len, sizeof(uint64_t));
-    blake2b_update(&blake2b_ctx, temp, len);
     i += 1;
   }
-  /* Digest witnesses that not covered by inputs */
-  i = calculate_inputs_len();
+
+  // Digest witnesses that not covered by inputs
+  i = ckb_calculate_inputs_len();
   while (1) {
-    len = MAX_WITNESS_SIZE;
-    ret = ckb_load_witness(temp, &len, 0, i, CKB_SOURCE_INPUT);
+    ret = load_and_hash_witness(&blake2b_ctx, i, CKB_SOURCE_INPUT);
     if (ret == CKB_INDEX_OUT_OF_BOUND) {
       break;
     }
     if (ret != CKB_SUCCESS) {
       return ERROR_SYSCALL;
     }
-    if (len > MAX_WITNESS_SIZE) {
-      return ERROR_WITNESS_SIZE;
-    }
-    blake2b_update(&blake2b_ctx, (unsigned char *)&len, sizeof(uint64_t));
-    blake2b_update(&blake2b_ctx, temp, len);
-
     i += 1;
   }
 

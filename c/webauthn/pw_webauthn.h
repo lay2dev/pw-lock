@@ -46,6 +46,13 @@
 int verify_challenge_in_client_data(const u8* digest_message,
                                     const u8* client_data,
                                     int client_data_len) {
+  if (digest_message == NULL || client_data == NULL) {
+    return ERROR_CLIENT_DATA;
+  }
+  if (client_data_len < MIN_CLIENT_DATA_SIZE) {
+    return ERROR_CLIENT_DATA_SIZE;
+  }
+
   u8 challenge_b64[44];
   u8 challenge_decode[33];
   size_t challenge_decode_len = 33;
@@ -60,6 +67,10 @@ int verify_challenge_in_client_data(const u8* digest_message,
 
   int challenge_b64_start = 0;
   int challenge_b64_len = 0;
+
+  if (client_data_len <= prefix_len) {
+    return ERROR_CLIENT_DATA_SIZE;
+  }
 
   /* extract challenge value from client data*/
   int i = 0;

@@ -43,8 +43,10 @@ int split_hex_hash(unsigned char* source, unsigned char* dest) {
  * 32 bytes
  * @param eth_address last 20 bytes keccak256 hash of pubkey, used to shield the
  * real pubkey. size is 20 bytes
- * @param lock_bytes signature signed by eos wallet, size is 65 bytes.
- *
+ * @param lock_args_size size of script lock args
+ * @param lock_bytes  a signature in witness.lock field used to present
+ * ownership. size is 65 bytes
+ * @param lock_bytes_size size of lock byte *
  */
 int validate_eos(unsigned char* message, unsigned char* eth_address,
                  uint64_t lock_args_size, unsigned char* lock_bytes,
