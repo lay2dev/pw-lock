@@ -60,3 +60,9 @@ target
 .idea/
 /specs/cells
 .vscode/
+webauthn_coverage
+webauthn_fuzzer
+tests/pw_webauthn_lib/corpus
+tests/pw_webauthn_lib/crash-*
+tests/pw_webauthn_lib/fuzz-*
+tests/pw_webauthn_lib/coverage/*
