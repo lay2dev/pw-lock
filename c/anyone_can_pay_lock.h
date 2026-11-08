@@ -20,8 +20,8 @@ typedef struct {
 } InputWallet;
 
 int check_payment_unlock(uint64_t min_ckb_amount, uint128_t min_udt_amount) {
-  unsigned char lock_hash[BLAKE2B_BLOCK_SIZE];
-  InputWallet input_wallets[MAX_TYPE_HASH];
+  unsigned char lock_hash[BLAKE2B_BLOCK_SIZE] = {0};
+  InputWallet input_wallets[MAX_TYPE_HASH] = {0};
   uint64_t len = BLAKE2B_BLOCK_SIZE;
   /* load wallet lock hash */
   int ret = ckb_load_script_hash(lock_hash, &len, 0);
@@ -94,8 +94,8 @@ int check_payment_unlock(uint64_t min_ckb_amount, uint128_t min_udt_amount) {
   /* iterate outputs wallet cell */
   i = 0;
   while (1) {
-    uint8_t output_lock_hash[BLAKE2B_BLOCK_SIZE];
-    uint8_t output_type_hash[BLAKE2B_BLOCK_SIZE];
+    uint8_t output_lock_hash[BLAKE2B_BLOCK_SIZE] = {0};
+    uint8_t output_type_hash[BLAKE2B_BLOCK_SIZE] = {0};
     uint64_t len = BLAKE2B_BLOCK_SIZE;
     /* check lock hash */
     ret = ckb_checked_load_cell_by_field(output_lock_hash, &len, 0, i,
@@ -134,8 +134,8 @@ int check_payment_unlock(uint64_t min_ckb_amount, uint128_t min_udt_amount) {
     int is_ckb_only = ret == CKB_ITEM_MISSING;
 
     /* load amount */
-    uint64_t ckb_amount;
-    uint128_t udt_amount;
+    uint64_t ckb_amount = 0;
+    uint128_t udt_amount = 0;
     len = CKB_LEN;
     ret = ckb_checked_load_cell_by_field((uint8_t *)&ckb_amount, &len, 0, i,
                                          CKB_SOURCE_OUTPUT,
@@ -179,9 +179,9 @@ int check_payment_unlock(uint64_t min_ckb_amount, uint128_t min_udt_amount) {
         continue;
       }
       /* compare amount */
-      uint64_t min_output_ckb_amount;
-      uint128_t min_output_udt_amount;
-      int overflow;
+      uint64_t min_output_ckb_amount = 0;
+      uint128_t min_output_udt_amount = 0;
+      int overflow = 0;
       overflow = uint64_overflow_add(
           &min_output_ckb_amount, input_wallets[j].ckb_amount, min_ckb_amount);
       int meet_ckb_cond = !overflow && ckb_amount >= min_output_ckb_amount;
