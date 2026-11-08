@@ -14,6 +14,46 @@ make all-via-docker
 cargo test --all
 ```
 
+## 主网部署
+
+### Lock script
+
+| 字段 | 值 |
+|---|---|
+| code_hash | `0xbf43c3602455798c1a61a596e0d95278864c552fafe231c063b3fabf97a8febc` |
+| hash_type | `type` |
+| args | 20 字节以太坊地址 |
+
+`code_hash` 是代码 cell 的 Type ID type script 的 hash，升级前后不变。
+
+### Cell deps
+
+解锁 PW-lock cell 的交易需要同时带上下面两个 cell dep：
+
+| Cell dep | out_point（tx_hash, index） | dep_type |
+|---|---|---|
+| PW-lock 代码 | `0x7534a9800b6722342044d4449693470560a13c37f8e560dfc0a82d6639be7f4b`, `0x0` | `code` |
+| secp256k1（genesis dep group） | `0x71a7ba8fc96349fea0ed3a5c47992e3b4084b031a42264a018e0072e8172e46c`, `0x0` | `dep_group` |
+
+**PW-lock 代码 cell**
+- 代码：`secp256k1_keccak256_sighash_all_acpl`，45,680 字节。
+- data hash：`0x48e13371dada58b708d49334dc6418d7f371ded0b550e2c9c5e8aa0a45b63d84`。
+- Type ID args：`0x42ade2f25eb938b5dbfd3d8f07b8b07aa593d848e7ff14bdfbbea5aeb6175261`。
+
+**genesis dep group**
+- 它提供 `secp256k1_data`：`0xe2fb199810d49a4d8beec56718ba2593b665db9d52299a0f9e6e75416d73ff5c`，index `0x3`，data hash `0x9799bee251b975b82c45a02154ce28cec89c5853ecc14d12b7b8cccfc19e0af4`。
+- PW-lock 按 data hash 查找这个 cell。
+
+**升级记录**
+
+| 时间 | 代码 cell | 源码 |
+|---|---|---|
+| 2026-11-09（区块 20,961,351） | `0x7534a980…7f4b#0` | 分支 `fix/zero-init-acp`：98f5821 加上 `check_payment_unlock` 局部变量零初始化 |
+| 之前 | `0x1d60cb8f4666e039f418ea94730b1a8c5aa0bf2f7781474406387462924d15d4#0` | 98f5821 |
+
+- 旧 out_point `0x1d60cb8f…#0` 已被花费，不能再作为 cell dep 使用。
+- 签名格式和锁的行为都没有变化，只需更新代码 cell 的 out_point。
+
 ## 原理
 
 ### 官方交易签名基本逻辑：

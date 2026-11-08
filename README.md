@@ -14,6 +14,46 @@ make all-via-docker
 cargo test --all
 ```
 
+## Mainnet Deployment
+
+### Lock script
+
+| Field | Value |
+|---|---|
+| code_hash | `0xbf43c3602455798c1a61a596e0d95278864c552fafe231c063b3fabf97a8febc` |
+| hash_type | `type` |
+| args | 20-byte Ethereum address |
+
+`code_hash` is the hash of the code cell's Type ID type script. It stays the same across upgrades.
+
+### Cell deps
+
+A transaction that unlocks PW-lock cells must include both of these cell deps:
+
+| Cell dep | out_point (tx_hash, index) | dep_type |
+|---|---|---|
+| PW-lock code | `0x7534a9800b6722342044d4449693470560a13c37f8e560dfc0a82d6639be7f4b`, `0x0` | `code` |
+| secp256k1 (genesis dep group) | `0x71a7ba8fc96349fea0ed3a5c47992e3b4084b031a42264a018e0072e8172e46c`, `0x0` | `dep_group` |
+
+**PW-lock code cell**
+- Code: `secp256k1_keccak256_sighash_all_acpl`, 45,680 bytes.
+- Data hash: `0x48e13371dada58b708d49334dc6418d7f371ded0b550e2c9c5e8aa0a45b63d84`.
+- Type ID args: `0x42ade2f25eb938b5dbfd3d8f07b8b07aa593d848e7ff14bdfbbea5aeb6175261`.
+
+**Genesis dep group**
+- It provides `secp256k1_data`: `0xe2fb199810d49a4d8beec56718ba2593b665db9d52299a0f9e6e75416d73ff5c`, index `0x3`, data hash `0x9799bee251b975b82c45a02154ce28cec89c5853ecc14d12b7b8cccfc19e0af4`.
+- PW-lock looks this cell up by its data hash.
+
+**Upgrade history**
+
+| Date | Code cell | Source |
+|---|---|---|
+| 2026-11-09 (block 20,961,351) | `0x7534a980…7f4b#0` | branch `fix/zero-init-acp`: 98f5821 plus zero-initialization of locals in `check_payment_unlock` |
+| before | `0x1d60cb8f4666e039f418ea94730b1a8c5aa0bf2f7781474406387462924d15d4#0` | 98f5821 |
+
+- The old out_point `0x1d60cb8f…#0` is now spent and can no longer be used as a cell dep.
+- Signature format and lock behaviour are unchanged. Only the code cell out_point needs updating.
+
 ## Script Implementation
 
 In view of the fact that [EIP712](https://github.com/ethereum/EIPs/blob/master/EIPS/eip-712.md) can show users more intuitive and safe information, pw-lock preferentially supports EIP712 related signature method [eth_signTypedData_v4](https://github.com/MetaMask/eth-sig-util/blob/11bfc0345f5fcd91b23e721c17dd32df08465d9c/index.ts#L493). However, currently only a few ETH wallets can fully support EIP712. In order to fully support the Ethereum ecosystem, pw-lock also adapts to the [personalSign](https://github.com/MetaMask/eth-sig-util/blob/11bfc0345f5fcd91b23e721c17dd32df08465d9c/index.ts#L299) signature currently supported by most Ethereum wallets.
